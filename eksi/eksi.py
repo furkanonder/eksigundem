@@ -1,9 +1,9 @@
 import os
 import sys
-import urllib.request
+from urllib.request import Request, urlopen
 
 from bs4 import BeautifulSoup
-from eksi.color import init_colors, cprint
+from eksi.color import cprint, init_colors
 
 
 class Eksi:
@@ -22,7 +22,8 @@ class Eksi:
             yield l[i : i + 3]
 
     def parser(self, url):
-        page = urllib.request.urlopen(url)
+        req = Request(url, headers={"User-Agent": "Mozilla/5.0"})
+        page = urlopen(req).read()
         soup = BeautifulSoup(page, "html.parser")
         entries = soup.find_all("ul", {"id": "entry-item-list"})
         soup = BeautifulSoup(str(*entries), "lxml")
@@ -90,7 +91,8 @@ class Eksi:
                 break
 
     def main(self, topic_count=None):
-        page = urllib.request.urlopen(self.home_page)
+        req = Request(self.home_page, headers={"User-Agent": "Mozilla/5.0"})
+        page = urlopen(req).read()
         soup = BeautifulSoup(page, "html.parser")
         agenda = soup.find_all("ul", {"class": "topic-list partial"})
         self.topic_title, self.topic_url = "", ""
