@@ -1,8 +1,10 @@
 import os
 import sys
 from urllib.request import Request, urlopen
+from urllib.error import HTTPError
 
 from bs4 import BeautifulSoup
+
 from eksi.color import cprint, init_colors
 
 
@@ -55,7 +57,7 @@ class Eksi:
                 return
             cprint("green", self.topic_title)
             self.reader(url + "&p=" + str(self.page_num))
-        except urllib.error.HTTPError:
+        except HTTPError:
             self.reader(url + "&p=" + str(self.page_num - 1))
             cprint("red", "Şu an en son sayfadasınız!")
             self.page_num -= 1
