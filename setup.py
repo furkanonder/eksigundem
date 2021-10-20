@@ -3,10 +3,6 @@ from pathlib import Path
 from setuptools import setup
 
 CURRENT_DIR = Path(__file__).parent
-version = {}
-
-with open("eksi/version.py") as fp:
-    exec(fp.read(), version)
 
 
 def get_long_description():
@@ -17,7 +13,7 @@ def get_long_description():
 
 setup(
     name="eksi",
-    version=version["__version__"],
+    version="0.2.0",
     description="Komut satırında Ekşisözlük!",
     keywords=["ekşisözlük", "ekşi", "eksi", "sözlük"],
     long_description=get_long_description(),
