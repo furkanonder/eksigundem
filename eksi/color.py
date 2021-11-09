@@ -1,5 +1,4 @@
 from colorama import Fore
-from colorama import init as init_colors
 
 colors = dict(
     red=Fore.RED,

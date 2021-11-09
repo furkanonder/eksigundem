@@ -1,12 +1,14 @@
 import os
 import sys
+from typing import Generator, List
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
-from typing import Generator, List
 
-from bs4 import Tag, BeautifulSoup as Soup
+from bs4 import BeautifulSoup as Soup
+from bs4 import Tag
+from colorama import init as init_colors
 
-from eksi.color import cprint, init_colors
+from eksi.color import cprint
 
 
 class Eksi:
