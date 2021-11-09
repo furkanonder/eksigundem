@@ -2,8 +2,9 @@ import os
 import sys
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
+from typing import Generator, List
 
-from bs4 import BeautifulSoup as Soup
+from bs4 import Tag, BeautifulSoup as Soup
 
 from eksi.color import cprint, init_colors
 
@@ -11,31 +12,31 @@ from eksi.color import cprint, init_colors
 class Eksi:
     base_url = "https://eksisozluk.com/"
 
-    def __init__(self):
-        self.searchable = True
-        self.topic_limit = 50
-        self.topic_title = ""
-        self.topic_url = ""
-        self.page_num = 1
-        self.topics = []
+    def __init__(self) -> None:
+        self.searchable: bool = True
+        self.topics: List[Tag] = []
+        self.topic_limit: int = 50
+        self.page_num: int = 1
+        self.topic_title: str
+        self.topic_url: str
         init_colors()
 
     @staticmethod
-    def chunk(l):
+    def chunk(l: List[str]) -> Generator[List[str], None, None]:
         for i in range(0, len(l), 3):
             yield l[i : i + 3]
 
     @staticmethod
-    def clear_screen():
+    def clear_screen() -> None:
         os.system("cls" if os.name == "nt" else "clear")
 
     @staticmethod
-    def get_soup(url):
+    def get_soup(url: str) -> Soup:
         req = Request(url, headers={"User-Agent": "Mozilla/5.0"})
         soup = Soup(urlopen(req).read(), "html.parser")
         return soup
 
-    def parser(self, url):
+    def parser(self, url: str) -> Generator:
         soup = self.get_soup(url)
         entries = soup.find_all("ul", {"id": "entry-item-list"})
         lines = [
@@ -45,12 +46,14 @@ class Eksi:
         chunk = self.chunk(entry_list)
         return chunk
 
-    def reader(self, page_num=None):
-        page = self.base_url + self.topic_url
-        if page_num:
-            page += "&p=" + str(page_num)
+    def reader(self, page_num: int = 0) -> None:
+        self.clear_screen()
+        page_url = self.base_url + self.topic_url
 
-        chunk = self.parser(page)
+        if page_num:
+            page_url += "&p=" + str(page_num)
+
+        chunk = self.parser(page_url)
         cprint("green", self.topic_title)
         for text in chunk:
             cprint("white", text[0]), cprint("cyan", text[1], text[2])
@@ -59,20 +62,18 @@ class Eksi:
         cprint("red", "Programdan çıkmak için: (c)")
         cprint("cyan", "Sonraki sayfa için: (s)\n Önceki sayfa için: (o)")
 
-    def get_page(self):
+    def get_page(self) -> None:
         try:
-            self.clear_screen()
             self.reader(self.page_num)
             if self.page_num <= 0:
                 cprint("red", "Şu an ilk sayfadasınız!")
                 self.page_num = 1
-                return
         except HTTPError:
             self.page_num -= 1
             self.reader(self.page_num)
             cprint("red", "Şu an en son sayfadasınız!")
 
-    def prompt(self):
+    def prompt(self) -> None:
         while True:
             try:
                 cmd = input(">>> ")
@@ -96,7 +97,7 @@ class Eksi:
             except (KeyboardInterrupt, EOFError):
                 sys.exit(1)
 
-    def main(self, topic_count=None):
+    def main(self, topic_count: int = 0) -> None:
         self.topic_title, self.topic_url = "", ""
         self.topics.clear()
         self.clear_screen()
@@ -106,7 +107,7 @@ class Eksi:
         agenda = soup.find_all("ul", {"class": "topic-list partial mobile"})
 
         if topic_count:
-            self.topic_limit = int(topic_count)
+            self.topic_limit = topic_count
 
         for ul in agenda:
             for li in ul.find_all("li"):
