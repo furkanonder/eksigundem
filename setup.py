@@ -25,7 +25,6 @@ setup(
     python_requires=">=3.0",
     packages=["eksi"],
     install_requires=[
-        "lxml==4.6.3",
         "beautifulsoup4==4.9.3",
         "colorama==0.4.4",
     ],
