@@ -13,4 +13,5 @@ colors = dict(
 
 
 def cprint(color, *args, **kwargs):
+    kwargs["sep"] = ""
     print(colors[color], *args, Fore.RESET, **kwargs)
