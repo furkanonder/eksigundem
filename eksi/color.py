@@ -1,5 +1,6 @@
-from colorama import Fore
 from typing import Any
+
+from colorama import Fore
 
 colors = dict(
     red=Fore.RED,
@@ -13,6 +14,6 @@ colors = dict(
 )
 
 
-def cprint(color:str, *args:Any, **kwargs:Any)->None:
+def cprint(color: str, *args: Any, **kwargs: Any) -> None:
     kwargs["sep"] = ""
     print(colors[color], *args, Fore.RESET, **kwargs)
