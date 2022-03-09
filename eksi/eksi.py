@@ -141,6 +141,6 @@ class Eksi:
             cprint("white", title, end=" ")
             cprint("blue", entry_count)
 
-        cprint("red", "Programdan çıkmak için: (c)", flush=False)
+        cprint("red", "Programdan çıkmak için: (c)")
         cprint("cyan", "Okumak istediğiniz başlık numarası: ")
         self.prompt()
