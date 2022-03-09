@@ -1,5 +1,5 @@
 import unittest
-from typing import Generator, List
+from typing import Generator
 
 from bs4 import BeautifulSoup as Soup
 
@@ -17,7 +17,11 @@ class TestEksi(unittest.TestCase):
 
     def test_parser(self):
         url = self.base_url + "eksi"
-        chunk = self.eksi.parser(url)
+        chunk = self.eksi.get_entries(url)
 
         self.assertIsInstance(chunk, Generator)
-        self.assertIsInstance(next(chunk), List)
+        self.assertIsInstance(next(chunk), tuple)
+
+        entry = next(chunk)
+        for val in entry:
+            self.assertIsInstance(val, str)
