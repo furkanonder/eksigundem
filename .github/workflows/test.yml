@@ -16,7 +16,6 @@ jobs:
           git config user.name "name"
           git config user.email "<>"
           git config push.default "current"
-          ./run
           
       - name: Set up Python${{ matrix.python-version }}
         uses: actions/setup-python@v2.1.4
