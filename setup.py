@@ -13,7 +13,7 @@ def get_long_description():
 
 setup(
     name="eksi",
-    version="0.2.0",
+    version="0.3.0",
     description="Komut satırında Ekşisözlük!",
     keywords=["ekşisözlük", "ekşi", "eksi", "sözlük"],
     long_description=get_long_description(),
@@ -22,7 +22,7 @@ setup(
     author_email="furkanonder@protonmail.com",
     url="https://github.com/furkanonder/eksigundem/",
     license="MIT",
-    python_requires=">=3.0",
+    python_requires=">=3.7",
     packages=["eksi"],
     install_requires=[
         "beautifulsoup4==4.9.3",
