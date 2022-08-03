@@ -21,7 +21,6 @@ class Eksi:
         self.page_num: int = 1
         self.topic_title: str
         self.topic_url: str
-        init_colors()
 
     @staticmethod
     def clear_screen() -> None:
