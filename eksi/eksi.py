@@ -8,7 +8,6 @@ from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
 from bs4 import BeautifulSoup as Soup
-from colorama import init as init_colors
 
 from eksi.color import BLUE, CYAN, GREEN, MAGENTA, RED, YELLOW, set_color
 
