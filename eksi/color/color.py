@@ -15,7 +15,7 @@ RESET = "\x1b[0m"
 PRINT_COLORFUL = True
 
 if sys.platform == "win32":
-    from windows import enable_colors_for_windows
+    from eksi.color.windows import enable_colors_for_windows
 
     try:
         enable_colors_for_windows()
