@@ -18,7 +18,7 @@ from eksi.color import (
 class TestColor(unittest.TestCase):
     @unittest.skipIf(sys.platform != "win32", reason="Requires Windows")
     def test_terminal_support_color_on_win(self):
-        from windows import enable_colors_for_windows
+        from eksi.color.windows import enable_colors_for_windows
 
         try:
             enable_colors_for_windows()
