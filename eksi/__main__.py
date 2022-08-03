@@ -4,7 +4,9 @@ from eksi.eksi import Eksi
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Komut satırında Ekşi Sözlük!")
+    parser = argparse.ArgumentParser(
+        description="Komut satırında Ekşi Sözlük!"
+    )
     parser.add_argument("-v", "--versiyon", action="version", version="0.3.0")
     parser.add_argument(
         "-b",

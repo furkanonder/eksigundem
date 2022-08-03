@@ -26,7 +26,6 @@ setup(
     packages=["eksi"],
     install_requires=[
         "beautifulsoup4==4.9.3",
-        "colorama==0.4.4",
     ],
     extras_require={},
     zip_safe=False,
