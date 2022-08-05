@@ -4,9 +4,9 @@ from eksi.color.color import (
     CYAN,
     GREEN,
     MAGENTA,
-    PRINT_COLORFUL,
     RED,
     RESET,
     YELLOW,
     set_color,
 )
+from eksi.color.initialize import init_colors

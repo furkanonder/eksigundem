@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import sys
-
 BLACK = "\x1b[30m"
 RED = "\x1b[31m"
 GREEN = "\x1b[32m"
@@ -12,16 +10,6 @@ CYAN = "\x1b[36m"
 WHITE = "\x1b[37m"
 RESET = "\x1b[0m"
 
-PRINT_COLORFUL = True
-
-if sys.platform == "win32":
-    from eksi.color.windows import enable_colors_for_windows
-
-    try:
-        enable_colors_for_windows()
-    except OSError:
-        PRINT_COLORFUL = False
-
 
 def set_color(color: str, text: str) -> str:
-    return f"{color}{text}{RESET}" if PRINT_COLORFUL else text
+    return f"{color}{text}{RESET}"

@@ -9,7 +9,16 @@ from urllib.request import Request, urlopen
 
 from bs4 import BeautifulSoup as Soup
 
-from eksi.color import BLUE, CYAN, GREEN, MAGENTA, RED, YELLOW, set_color
+from eksi.color import (
+    BLUE,
+    CYAN,
+    GREEN,
+    MAGENTA,
+    RED,
+    YELLOW,
+    init_colors,
+    set_color,
+)
 
 
 class Eksi:
@@ -21,6 +30,7 @@ class Eksi:
         self.page_num: int = 1
         self.topic_title: str
         self.topic_url: str
+        init_colors()
 
     @staticmethod
     def clear_screen() -> None:

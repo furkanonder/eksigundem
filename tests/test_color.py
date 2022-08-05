@@ -1,35 +1,22 @@
-import sys
 import unittest
 
 from eksi.color import (
     BLACK,
-    RED,
-    GREEN,
-    YELLOW,
     BLUE,
-    MAGENTA,
     CYAN,
+    GREEN,
+    MAGENTA,
+    RED,
     RESET,
-    PRINT_COLORFUL,
+    YELLOW,
+    init_colors,
     set_color,
 )
 
 
 class TestColor(unittest.TestCase):
-    @unittest.skipIf(sys.platform != "win32", reason="Requires Windows")
-    def test_terminal_support_color_on_win(self):
-        from eksi.color.windows import enable_colors_for_windows
-
-        try:
-            enable_colors_for_windows()
-        except OSError:
-            assert PRINT_COLORFUL is False
-        else:
-            assert PRINT_COLORFUL is True
-
-    @unittest.skipIf(sys.platform == "win32", reason="Does not run on Windows")
-    def test_terminal_support_color(self):
-        assert PRINT_COLORFUL is True
+    def test_terminal_color_support(self):
+        init_colors()
 
     def test_colors(self):
         text = "this is test text"
