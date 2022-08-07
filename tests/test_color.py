@@ -1,4 +1,5 @@
 import unittest
+from unittest.mock import patch
 
 from eksi.color import (
     BLACK,
@@ -18,6 +19,7 @@ class TestColor(unittest.TestCase):
     def test_terminal_color_support(self):
         init_colors()
 
+    @patch("eksi.color.USE_COLOR", True)
     def test_colors(self):
         text = "this is test text"
 
@@ -42,6 +44,7 @@ class TestColor(unittest.TestCase):
         colored_text = set_color(CYAN, text)
         assert CYAN + text + RESET == colored_text
 
+    @patch("eksi.color.USE_COLOR", False)
     def test_false_color(self):
         text = "this is test text"
         colored_text = set_color(YELLOW, text)
