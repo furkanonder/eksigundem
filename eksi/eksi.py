@@ -24,15 +24,15 @@ class Eksi:
 
     @staticmethod
     def clear_screen() -> None:
-        """
-        If you are wondering how 'printf "\e[2J\e[3J\e[H"' works, you can read
-        the link below.
+        r"""If you are wondering how 'printf "\e[2J\e[3J\e[H"' works, you can
+        read the link below.
+
         https://apple.stackexchange.com/questions/31872/how-do-i-reset-the-scrollback-in-the-terminal-via-a-shell-command
         """
         if os.name == "nt":
             os.system("cls")
         else:
-            os.system('printf "\e[2J\e[3J\e[H"')
+            os.system(r'printf "\e[2J\e[3J\e[H"')
 
     @staticmethod
     def get_soup(url: str) -> Soup:

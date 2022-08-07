@@ -16,9 +16,9 @@ def init_colors():
         return True
 
     try:
-        """
-        Terminal coloring for Windows is written with Windows Console API
+        """Terminal coloring for Windows is written with Windows Console API
         Functions using the following resource.
+
         https://docs.microsoft.com/en-us/windows/console/console-virtual-terminal-sequences
         """
 
@@ -29,19 +29,17 @@ def init_colors():
         STD_OUTPUT_HANDLE = -11
 
         def err_check(result, func, args) -> tuple:
-            """
-            This function is a helper for the error checking. It is raises an
-            exception when the API call failed.
+            """This function is a helper for the error checking.
+
+            It is raises an exception when the API call failed.
             """
             if not result:
                 raise WinError()
             return args
 
         def get_std_handle() -> WINFUNCTYPE:
-            """
-            GetStdHandle retrieves a handle to the specified standard device
-            (standard input, standard output, or standard error).
-            """
+            """GetStdHandle retrieves a handle to the specified standard device
+            (standard input, standard output, or standard error)."""
             prototype = WINFUNCTYPE(HANDLE, DWORD)
             paramflags = ((1, "nStdHandle"),)
             function = prototype(("GetStdHandle", windll.kernel32), paramflags)
@@ -49,10 +47,9 @@ def init_colors():
             return function
 
         def get_console_mode() -> WINFUNCTYPE:
-            """
-            GetConsoleMode retrieves the current input mode of a console's input
-            buffer or the current output mode of a console screen buffer.
-            """
+            """GetConsoleMode retrieves the current input mode of a console's
+            input buffer or the current output mode of a console screen
+            buffer."""
             prototype = WINFUNCTYPE(BOOL, HANDLE, POINTER(DWORD))
             paramflags = ((1, "hConsoleHandle"), (2, "lpMode"))
             function = prototype(
@@ -62,10 +59,8 @@ def init_colors():
             return function
 
         def set_console_mode() -> WINFUNCTYPE:
-            """
-            SetConsoleMode sets the input mode of a console's input buffer or
-            the output mode of a console screen buffer.
-            """
+            """SetConsoleMode sets the input mode of a console's input buffer
+            or the output mode of a console screen buffer."""
             prototype = WINFUNCTYPE(BOOL, HANDLE, DWORD)
             paramflags = ((1, "hConsoleHandle"), (1, "dwMode"))
             function = prototype(
