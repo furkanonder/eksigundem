@@ -37,7 +37,9 @@ setup(
         "License :: OSI Approved :: MIT License",
         "Topic :: Utilities",
         "Environment :: Console",
-        "Operating System :: OS Independent",
+        "Operating System :: POSIX :: Linux",
+        "Operating System :: MacOS",
+        "Operating System :: Microsoft :: Windows :: Windows 10",
     ],
     entry_points={
         "console_scripts": [
