@@ -44,7 +44,7 @@ class TestColor(unittest.TestCase):
         colored_text = set_color(CYAN, text)
         assert CYAN + text + RESET == colored_text
 
-    @patch("eksi.color.USE_COLOR", False)
+    @patch("eksi.color.USE_COLOR", True)
     def test_false_color(self):
         text = "this is test text"
         colored_text = set_color(YELLOW, text)
