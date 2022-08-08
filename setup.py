@@ -13,7 +13,7 @@ def get_long_description():
 
 setup(
     name="eksi",
-    version="0.3.0",
+    version="0.4.0",
     description="Komut satırında Ekşisözlük!",
     keywords=["ekşisözlük", "ekşi", "eksi", "sözlük"],
     long_description=get_long_description(),
