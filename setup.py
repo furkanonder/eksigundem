@@ -26,7 +26,6 @@ setup(
     packages=["eksi"],
     install_requires=[
         "beautifulsoup4==4.9.3",
-        "colorama==0.4.4",
     ],
     extras_require={},
     zip_safe=False,
@@ -38,7 +37,9 @@ setup(
         "License :: OSI Approved :: MIT License",
         "Topic :: Utilities",
         "Environment :: Console",
-        "Operating System :: OS Independent",
+        "Operating System :: POSIX :: Linux",
+        "Operating System :: MacOS",
+        "Operating System :: Microsoft :: Windows :: Windows 10",
     ],
     entry_points={
         "console_scripts": [

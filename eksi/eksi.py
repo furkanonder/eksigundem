@@ -8,9 +8,8 @@ from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
 from bs4 import BeautifulSoup as Soup
-from colorama import init as init_colors
 
-from eksi.color import cprint
+from eksi.color import BLUE, CYAN, GREEN, MAGENTA, RED, YELLOW, set_color
 
 
 class Eksi:
@@ -22,18 +21,18 @@ class Eksi:
         self.page_num: int = 1
         self.topic_title: str
         self.topic_url: str
-        init_colors()
 
     @staticmethod
     def clear_screen() -> None:
-        """
-        If you are wondering how 'printf "\e[2J\e[3J\e[H"' works, you can read to the link below.
+        r"""If you are wondering how 'printf "\e[2J\e[3J\e[H"' works, you can
+        read the link below.
+
         https://apple.stackexchange.com/questions/31872/how-do-i-reset-the-scrollback-in-the-terminal-via-a-shell-command
         """
         if os.name == "nt":
             os.system("cls")
         else:
-            os.system('printf "\e[2J\e[3J\e[H"')
+            os.system(r'printf "\e[2J\e[3J\e[H"')
 
     @staticmethod
     def get_soup(url: str) -> Soup:
@@ -47,7 +46,9 @@ class Eksi:
 
         for entry in entries:
             content = entry.find("div", class_="content")
-            author_date = entry.find("div", class_="footer-info").text.splitlines()
+            author_date = entry.find(
+                "div", class_="footer-info"
+            ).text.splitlines()
 
             # Add url to entry text
             for a in content.select("a[href]"):
@@ -77,28 +78,32 @@ class Eksi:
 
     def reader(self, page_num: int = 0) -> None:
         self.clear_screen()
-        cprint("green", self.topic_title)
+        print(set_color(GREEN, self.topic_title))
         page_url = self.base_url + self.topic_url
         page_url += f"&p={page_num}" if page_num else ""
 
         for entry in self.get_entries(page_url):
-            cprint("white", entry[0])
-            cprint("cyan", " ".join(entry[1:]))
+            print(set_color(YELLOW, entry[0]))
+            print(set_color(CYAN, " ".join(entry[1:])))
 
-        cprint("green", "Sonraki sayfa için: (s) | Önceki sayfa için: (o)")
-        cprint("green", "Gündem başlıklarını görüntülemek için: (g)")
-        cprint("magenta", "Programdan çıkmak için: (c)")
+        print(
+            set_color(
+                GREEN, "Sonraki sayfa için: (s) | Önceki sayfa için: (o)"
+            )
+        )
+        print(set_color(GREEN, "Gündem başlıklarını görüntülemek için: (g)"))
+        print(set_color(MAGENTA, "Programdan çıkmak için: (c)"))
 
     def get_page(self) -> None:
         try:
             self.reader(self.page_num)
             if self.page_num <= 0:
-                cprint("red", "Şu an ilk sayfadasınız!")
+                print(set_color(RED, "Şu an ilk sayfadasınız!"))
                 self.page_num = 1
         except HTTPError:
             self.page_num -= 1
             self.reader(self.page_num)
-            cprint("red", "Şu an en son sayfadasınız!")
+            print(set_color(RED, "Şu an en son sayfadasınız!"))
 
     def prompt(self) -> None:
         while True:
@@ -119,7 +124,7 @@ class Eksi:
                     self.topic_title, self.topic_url = topic.popitem()
                     self.reader()
             except (ValueError, IndexError):
-                cprint("red", "Hata!Geçersiz bir değer girdiniz.")
+                print(set_color(RED, "Hata!Geçersiz bir değer girdiniz."))
             except (KeyboardInterrupt, EOFError):
                 sys.exit(1)
 
@@ -128,7 +133,9 @@ class Eksi:
         self.topic_title, self.topic_url, self.page_num = "", "", 1
 
         soup = self.get_soup(self.base_url + "basliklar/m/populer")
-        topics = soup.find("ul", {"class": "topic-list partial mobile"}).find_all("li")
+        topics = soup.find(
+            "ul", {"class": "topic-list partial mobile"}
+        ).find_all("li")
 
         if topic_count:
             self.topic_limit = topic_count
@@ -139,10 +146,10 @@ class Eksi:
 
         for index, topic in enumerate(self.topics, start=1):
             title, entry_count = list(topic)[0].rsplit(" ", 1)
-            cprint("green", index, end=" - ")
-            cprint("white", title, end=" ")
-            cprint("blue", entry_count)
+            print(set_color(GREEN, str(index)), end=" - ")
+            print(set_color(YELLOW, title), end=" ")
+            print(set_color(BLUE, entry_count))
 
-        cprint("red", "Programdan çıkmak için: (c)")
-        cprint("cyan", "Okumak istediğiniz başlık numarası: ")
+        print(set_color(RED, "Programdan çıkmak için: (c)"))
+        print(set_color(CYAN, "Okumak istediğiniz başlık numarası: "))
         self.prompt()
