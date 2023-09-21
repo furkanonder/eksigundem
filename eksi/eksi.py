@@ -13,7 +13,7 @@ from eksi.color import BLUE, CYAN, GREEN, MAGENTA, RED, YELLOW, set_color
 
 
 class Eksi:
-    base_url: ClassVar[str] = "https://eksisozluk.com/"
+    base_url: ClassVar[str] = "https://eksisozluk1923.com/"
 
     def __init__(self) -> None:
         self.topics: tuple[dict[str, str], ...]
