@@ -4,23 +4,25 @@ import os
 import sys
 from textwrap import fill
 from typing import ClassVar, Iterator
-from urllib.error import HTTPError
+from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
 from bs4 import BeautifulSoup as Soup
 
 from eksi.color import BLUE, CYAN, GREEN, MAGENTA, RED, YELLOW, set_color
 
+CUSTOM_HTTP_MESSAGES = {404: "Sayfa bulunamadı!", 403: "Erişim engellendi!"}
+
 
 class Eksi:
     base_url: ClassVar[str] = "https://eksisozluk.com/"
 
     def __init__(self) -> None:
-        self.topics: tuple[dict[str, str], ...]
+        self.topics: tuple[dict[str, str], ...] = ()
         self.topic_limit: int = 50
         self.page_num: int = 1
-        self.topic_title: str
-        self.topic_url: str
+        self.topic_title: str = ""
+        self.topic_url: str = ""
 
     @staticmethod
     def clear_screen() -> None:
@@ -35,10 +37,35 @@ class Eksi:
             os.system(r'printf "\e[2J\e[3J\e[H"')
 
     @staticmethod
-    def get_soup(url: str) -> Soup:
-        request = Request(url, headers={"User-Agent": "Mozilla/5.0"})
-        soup = Soup(urlopen(request).read(), "html.parser")
-        return soup
+    def get_soup(url: str) -> Soup | None:
+
+        def handle_http_error(e: HTTPError):
+            message = CUSTOM_HTTP_MESSAGES.get(e.code, None)
+            if message:
+                print(set_color(RED, message))
+            elif 500 <= e.code <= 511:
+                print(set_color(RED, "Sunucu hatası! Lütfen daha sonra tekrar deneyin."))
+            else:
+                print(set_color(RED, f"Hata! HTTP durum kodu: {e.code}"))
+
+        def handle_url_error(e: URLError):
+            reason = str(e.reason).lower()
+            if "name resolution" in reason:
+                print(set_color(RED, "Internet bağlantısı yok! Lütfen bağlantınızı kontrol edin."))
+            else:
+                print(set_color(RED, f"Bağlantı hatası: {e.reason}"))
+
+        try:
+            request = Request(url, headers={"User-Agent": "Mozilla/5.0"})
+            response = urlopen(request, timeout=10)
+            html_content = response.read().decode("utf-8")
+            return Soup(html_content, "html.parser")
+        except HTTPError as e:
+            handle_http_error(e)
+        except URLError as e:
+            handle_url_error(e)
+        except Exception as e:
+            print(set_color(RED, f"Beklenmeyen hata: {e}"))
 
     def get_entries(self, url: str) -> Iterator[tuple[str, ...]]:
         soup = self.get_soup(url)
@@ -46,10 +73,7 @@ class Eksi:
 
         for entry in entries:
             content = entry.find("div", class_="content")
-            author_date = entry.find(
-                "div", class_="footer-info"
-            ).text.splitlines()
-
+            author_date = entry.find("div", class_="footer-info").text.splitlines()
             # Add url to entry text
             for a in content.select("a[href]"):
                 link = a["href"]
@@ -57,40 +81,29 @@ class Eksi:
                     a.string = f" {link} "
             for tag in content.select("*"):
                 tag.unwrap()
-
             # Format the entry text
             output = tuple(
                 filter(
                     lambda val: val,
                     (
-                        fill(
-                            content.text,
-                            width=80,
-                            break_long_words=False,
-                            break_on_hyphens=False,
-                        ).strip(),
+                        fill(content.text, width=80, break_long_words=False, break_on_hyphens=False).strip(),
                         *author_date,
                     ),
                 )
             )
-
             yield output
 
     def reader(self, page_num: int = 0) -> None:
         self.clear_screen()
         print(set_color(GREEN, self.topic_title))
-        page_url = self.base_url + self.topic_url
+        page_url = f"{self.base_url}{self.topic_url}"
         page_url += f"&p={page_num}" if page_num else ""
 
         for entry in self.get_entries(page_url):
             print(set_color(YELLOW, entry[0]))
             print(set_color(CYAN, " ".join(entry[1:])))
 
-        print(
-            set_color(
-                GREEN, "Sonraki sayfa için: (s) | Önceki sayfa için: (o)"
-            )
-        )
+        print(set_color(GREEN, "Sonraki sayfa için: (s) | Önceki sayfa için: (o)"))
         print(set_color(GREEN, "Gündem başlıklarını görüntülemek için: (g)"))
         print(set_color(MAGENTA, "Programdan çıkmak için: (c)"))
 
@@ -108,7 +121,7 @@ class Eksi:
     def prompt(self) -> None:
         while True:
             try:
-                cmd = input(">>> ")
+                cmd = input(">>> ").strip().lower()
                 if cmd == "c":
                     sys.exit(0)
                 elif cmd == "g":
@@ -116,40 +129,50 @@ class Eksi:
                 elif self.topic_url:
                     if cmd == "s":
                         self.page_num += 1
+                        self.get_page()
                     elif cmd == "o":
-                        self.page_num -= 1
-                    self.get_page()
+                        self.page_num -= 1 if self.page_num > 1 else 1
+                        self.get_page()
+                    else:
+                        print(set_color(RED, "Geçersiz girdi! Lütfen girdinizi kontrol edin!"))
                 else:
-                    topic = self.topics[int(cmd) - 1]
-                    self.topic_title, self.topic_url = topic.popitem()
-                    self.reader()
-            except (ValueError, IndexError):
-                print(set_color(RED, "Hata!Geçersiz bir değer girdiniz."))
+                    try:
+                        topic_index = int(cmd) - 1
+                        if 0 <= topic_index < len(self.topics):
+                            topic = self.topics[topic_index]
+                            self.topic_title, self.topic_url = topic.popitem()
+                            self.reader()
+                        else:
+                            print(set_color(RED, f"Geçersiz girdi! 1-{len(self.topics)} arasında bir sayı girin."))
+                    except ValueError:
+                        print(set_color(RED, "Geçersiz girdi! Lütfen bir sayı girin."))
             except (KeyboardInterrupt, EOFError):
-                sys.exit(1)
+                sys.exit(0)
+            except Exception as e:
+                print(set_color(RED, f"Beklenmeyen hata: {e}"))
 
     def main(self, topic_count: int = 0) -> None:
         self.clear_screen()
         self.topic_title, self.topic_url, self.page_num = "", "", 1
 
-        soup = self.get_soup(self.base_url + "basliklar/m/populer")
-        topics = soup.find(
-            "ul", {"class": "topic-list partial mobile"}
-        ).find_all("li")
+        try:
+            print(set_color(CYAN, "Gündem başlıkları yükleniyor..."))
+            self.clear_screen()
+            soup = self.get_soup(f"{self.base_url}basliklar/m/populer")
+            topics = soup.find("ul", {"class": "topic-list partial mobile"}).find_all("li")
+            if topic_count:
+                self.topic_limit = min(topic_count, len(topics))
+            self.topics = tuple({li.text.strip(): li.find("a").get("href")} for li in topics)[: self.topic_limit]
 
-        if topic_count:
-            self.topic_limit = topic_count
+            print(set_color(CYAN, f"Gündem Başlıkları\n"))
+            for index, topic in enumerate(self.topics, start=1):
+                title, entry_count = list(topic)[0].rsplit(" ", 1)
+                print(set_color(GREEN, str(index)), end=" - ")
+                print(set_color(YELLOW, title), end=" ")
+                print(set_color(BLUE, entry_count))
 
-        self.topics = tuple(
-            {li.text.strip(): li.find("a").get("href")} for li in topics
-        )[: self.topic_limit]
-
-        for index, topic in enumerate(self.topics, start=1):
-            title, entry_count = list(topic)[0].rsplit(" ", 1)
-            print(set_color(GREEN, str(index)), end=" - ")
-            print(set_color(YELLOW, title), end=" ")
-            print(set_color(BLUE, entry_count))
-
-        print(set_color(RED, "Programdan çıkmak için: (c)"))
-        print(set_color(CYAN, "Okumak istediğiniz başlık numarası: "))
-        self.prompt()
+            print(f"\n{set_color(RED, 'Programdan çıkmak için: (c)')}")
+            print(set_color(CYAN, "Okumak istediğiniz başlık numarası: "))
+            self.prompt()
+        except Exception as e:
+            print(set_color(RED, f"Beklenmeyen hata: {e}"))
