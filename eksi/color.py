@@ -20,6 +20,7 @@ def init_colors():
         Functions using the following resource.
 
         https://docs.microsoft.com/en-us/windows/console/console-virtual-terminal-sequences
+
         """
         from ctypes import POINTER, WINFUNCTYPE, WinError, windll
         from ctypes.wintypes import BOOL, DWORD, HANDLE
@@ -31,6 +32,7 @@ def init_colors():
             """This function is a helper for the error checking.
 
             It is raises an exception when the API call failed.
+
             """
             if not result:
                 raise WinError()
