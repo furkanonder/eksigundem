@@ -1,21 +1,28 @@
 import argparse
+import sys
 
-from eksi.eksi import Eksi
+from eksi.color import RED, YELLOW, set_color
+from eksi.eksi import Eksi, EksiError
 
 
 def main():
     parser = argparse.ArgumentParser(description="Komut satırında Ekşi Sözlük!")
     parser.add_argument("-v", "--versiyon", action="version", version="0.3.0")
-    parser.add_argument(
-        "-b",
-        "--baslik",
-        type=int,
-        choices=range(1, 51),
-        help="Gösterilecek başlık sayısı",
-    )
-    args = parser.parse_args()
-    eksi = Eksi()
-    eksi.main(args.baslik)
+    parser.add_argument("-b", "--baslik", type=int, choices=range(1, 51), help="Gösterilecek başlık sayısı")
+
+    try:
+        args = parser.parse_args()
+        eksi = Eksi()
+        eksi.main(args.baslik)
+    except EksiError as e:
+        print(set_color(RED, f"Hata: {e}"))
+        sys.exit(1)
+    except KeyboardInterrupt:
+        sys.exit(0)
+    except Exception as e:
+        print(set_color(RED, f"Beklenmeyen hata: {e}"))
+        print(set_color(YELLOW, "Bu bir hata ise, lütfen GitHub'da issue açın."))
+        sys.exit(1)
 
 
 if __name__ == "__main__":
