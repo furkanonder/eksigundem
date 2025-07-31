@@ -2,8 +2,9 @@ from __future__ import annotations
 
 import os
 import sys
+from collections.abc import Iterator
 from textwrap import fill
-from typing import ClassVar, Iterator
+from typing import ClassVar
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
@@ -38,7 +39,6 @@ class Eksi:
 
     @staticmethod
     def get_soup(url: str) -> Soup | None:
-
         def handle_http_error(e: HTTPError):
             message = CUSTOM_HTTP_MESSAGES.get(e.code, None)
             if message:
@@ -66,11 +66,14 @@ class Eksi:
             handle_url_error(e)
         except Exception as e:
             print(set_color(RED, f"Beklenmeyen hata: {e}"))
+        return None
 
     def get_entries(self, url: str) -> Iterator[tuple[str, ...]]:
         soup = self.get_soup(url)
-        entries = soup.find("ul", {"id": "entry-item-list"}).find_all("li")
+        if soup is None:
+            return
 
+        entries = soup.find("ul", {"id": "entry-item-list"}).find_all("li")
         for entry in entries:
             content = entry.find("div", class_="content")
             author_date = entry.find("div", class_="footer-info").text.splitlines()
@@ -155,16 +158,20 @@ class Eksi:
         self.clear_screen()
         self.topic_title, self.topic_url, self.page_num = "", "", 1
 
+        print(set_color(CYAN, "Gündem başlıkları yükleniyor..."))
+        self.clear_screen()
         try:
-            print(set_color(CYAN, "Gündem başlıkları yükleniyor..."))
-            self.clear_screen()
             soup = self.get_soup(f"{self.base_url}basliklar/m/populer")
+            if soup is None:
+                print(set_color(RED, "Gündem başlıkları yüklenemedi!"))
+                return
+
             topics = soup.find("ul", {"class": "topic-list partial mobile"}).find_all("li")
             if topic_count:
                 self.topic_limit = min(topic_count, len(topics))
             self.topics = tuple({li.text.strip(): li.find("a").get("href")} for li in topics)[: self.topic_limit]
 
-            print(set_color(CYAN, f"Gündem Başlıkları\n"))
+            print(set_color(CYAN, "Gündem Başlıkları\n"))
             for index, topic in enumerate(self.topics, start=1):
                 title, entry_count = list(topic)[0].rsplit(" ", 1)
                 print(set_color(GREEN, str(index)), end=" - ")

@@ -1,8 +1,7 @@
 import unittest
-from typing import Generator
+from collections.abc import Generator
 
 from bs4 import BeautifulSoup as Soup
-
 from eksi.eksi import Eksi
 
 
