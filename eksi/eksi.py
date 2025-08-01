@@ -21,7 +21,7 @@ class Eksi:
     base_url: ClassVar[str] = "https://eksisozluk.com/"
 
     def __init__(self, topic_count: int) -> None:
-        self.topics: tuple[dict[str, str], ...] = ()
+        self.topics: list[tuple[str, str]] = []
         self.topic_count: int = topic_count
         self.page_num: int = 1
         self.topic_title: str = ""
@@ -107,8 +107,7 @@ class Eksi:
         try:
             topic_index = int(cmd) - 1
             if 0 <= topic_index < len(self.topics):
-                topic = self.topics[topic_index]
-                self.topic_title, self.topic_url = topic.popitem()
+                self.topic_title, self.topic_url = self.topics[topic_index]
                 self.reader()
             else:
                 print(set_color(RED, f"Geçersiz girdi! 1-{len(self.topics)} arasında bir sayı girin."))
@@ -141,21 +140,20 @@ class Eksi:
 
     def display_topics(self) -> None:
         self.topic_title, self.topic_url, self.page_num = "", "", 1
-
         soup = self.get_soup(f"{self.base_url}basliklar/m/populer")
         topics = soup.find("ul", {"class": "topic-list partial mobile"}).find_all("li")
         topic_limit = min(self.topic_count, len(topics))
-        self.topics = tuple(
-            {li.text.strip(): li.find("a").get("href")}
+        self.topics = [
+            (li.text.strip(), li.find("a").get("href"))
             for li in topics[:topic_limit]
             if li.find("a") and li.find("a").get("href")
-        )
+        ]
 
         self.clear_screen()
         print(set_color(CYAN, "Gündem Başlıkları\n"))
-        for index, topic in enumerate(self.topics, start=1):
-            title, entry_count = list(topic)[0].rsplit(" ", 1)
-            print(set_color(GREEN, str(index)), end=" - ")
+        for index, (title, url) in enumerate(self.topics, start=1):
+            title, entry_count = title.rsplit(" ", 1)
+            print(set_color(GREEN, f"{index}"), end=" - ")
             print(set_color(YELLOW, title), end=" ")
             print(set_color(BLUE, entry_count))
 
