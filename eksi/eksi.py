@@ -74,8 +74,7 @@ class Eksi:
                     a.string = f" {link} "
             for tag in content.select("*"):
                 tag.unwrap()
-            formatted_text = fill(content.text, width=80, break_long_words=False, break_on_hyphens=False).strip()
-            if formatted_text:  # Only yield non-empty entries
+            if formatted_text := fill(content.text, width=80, break_long_words=False, break_on_hyphens=False).strip():
                 yield tuple(filter(None, [formatted_text, *author_date]))
 
     def reader(self, page_num: int = 0) -> None:
@@ -91,17 +90,15 @@ class Eksi:
         print(set_color(GREEN, "(s)onraki, (o)nceki, (g)ündem, (c)ıkış"))
 
     def get_page(self) -> None:
-        if self.page_num <= 0:
-            print(set_color(RED, "Şu an ilk sayfadasınız!"))
-            self.page_num = 1
         try:
             self.reader(self.page_num)
+            if self.page_num <= 0:
+                print(set_color(RED, "Şu an ilk sayfadasınız!"))
+                self.page_num = 1
         except EksiError:
-            # If page doesn't exist, go back one page
-            if self.page_num > 1:
-                self.page_num -= 1
-                print(set_color(RED, "Şu an en son sayfadasınız!"))
-                self.reader(self.page_num)
+            self.page_num -= 1
+            self.reader(self.page_num)
+            print(set_color(RED, "Şu an en son sayfadasınız!"))
 
     def handle_topic_selection(self, cmd: str) -> None:
         try:
@@ -127,7 +124,7 @@ class Eksi:
                         self.page_num += 1
                         self.get_page()
                     elif cmd == "o":
-                        self.page_num = max(1, self.page_num - 1)
+                        self.page_num -= 1
                         self.get_page()
                     else:
                         print(set_color(RED, "Geçersiz girdi! (s)onraki, (o)nceki, (g)ündem, (c)ıkış"))
@@ -141,13 +138,8 @@ class Eksi:
     def display_topics(self) -> None:
         self.topic_title, self.topic_url, self.page_num = "", "", 1
         soup = self.get_soup(f"{self.base_url}basliklar/m/populer")
-        topics = soup.find("ul", {"class": "topic-list partial mobile"}).find_all("li")
-        topic_limit = min(self.topic_count, len(topics))
-        self.topics = [
-            (li.text.strip(), li.find("a").get("href"))
-            for li in topics[:topic_limit]
-            if li.find("a") and li.find("a").get("href")
-        ]
+        topics = soup.select("ul.topic-list.partial.mobile li")
+        self.topics = [(li.text.strip(), li.find("a").get("href")) for li in topics[: self.topic_count]]
 
         self.clear_screen()
         print(set_color(CYAN, "Gündem Başlıkları\n"))
