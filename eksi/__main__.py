@@ -8,12 +8,14 @@ from eksi.eksi import Eksi, EksiError
 def main():
     parser = argparse.ArgumentParser(description="Komut satırında Ekşi Sözlük!")
     parser.add_argument("-v", "--versiyon", action="version", version="0.3.0")
-    parser.add_argument("-b", "--baslik", type=int, choices=range(1, 51), help="Gösterilecek başlık sayısı")
+    parser.add_argument(
+        "-b", "--baslik_sayisi", type=int, default=50, choices=range(1, 51), help="Gösterilecek başlık sayısı"
+    )
 
     try:
         args = parser.parse_args()
-        eksi = Eksi()
-        eksi.main(args.baslik)
+        eksi = Eksi(topic_count=args.baslik_sayisi)
+        eksi.main()
     except EksiError as e:
         print(set_color(RED, f"Hata: {e}"))
         sys.exit(1)

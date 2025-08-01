@@ -10,7 +10,7 @@ from urllib.request import Request, urlopen
 
 from bs4 import BeautifulSoup as Soup
 
-from eksi.color import BLUE, CYAN, GREEN, MAGENTA, RED, YELLOW, set_color
+from eksi.color import BLUE, CYAN, GREEN, RED, YELLOW, set_color
 
 
 class EksiError(Exception):
@@ -20,9 +20,9 @@ class EksiError(Exception):
 class Eksi:
     base_url: ClassVar[str] = "https://eksisozluk.com/"
 
-    def __init__(self) -> None:
+    def __init__(self, topic_count: int) -> None:
         self.topics: tuple[dict[str, str], ...] = ()
-        self.topic_limit: int = 50
+        self.topic_count: int = topic_count
         self.page_num: int = 1
         self.topic_title: str = ""
         self.topic_url: str = ""
@@ -39,12 +39,6 @@ class Eksi:
             os.system("cls")
         else:
             os.system(r'printf "\e[2J\e[3J\e[H"')
-
-    @staticmethod
-    def _print_navigation_help() -> None:
-        print(set_color(GREEN, "Sonraki sayfa için: (s) | Önceki sayfa için: (o)"))
-        print(set_color(GREEN, "Gündem başlıklarını görüntülemek için: (g)"))
-        print(set_color(MAGENTA, "Programdan çıkmak için: (c)"))
 
     @staticmethod
     def get_soup(url: str) -> Soup:
@@ -94,7 +88,7 @@ class Eksi:
             print(set_color(YELLOW, entry[0]))
             print(set_color(CYAN, " ".join(entry[1:])))
 
-        self._print_navigation_help()
+        print(set_color(GREEN, "(s)onraki, (o)nceki, (g)ündem, (c)ıkış"))
 
     def get_page(self) -> None:
         if self.page_num <= 0:
@@ -128,7 +122,7 @@ class Eksi:
                 if cmd == "c":
                     sys.exit(0)
                 elif cmd == "g":
-                    self.main()
+                    self.display_topics()
                 elif self.topic_url:
                     if cmd == "s":
                         self.page_num += 1
@@ -145,21 +139,20 @@ class Eksi:
             except Exception as e:
                 print(set_color(RED, f"Beklenmeyen hata: {e}"))
 
-    def load_topics(self, topic_count: int = 0) -> None:
+    def display_topics(self) -> None:
+        self.topic_title, self.topic_url, self.page_num = "", "", 1
+
         soup = self.get_soup(f"{self.base_url}basliklar/m/populer")
         topics = soup.find("ul", {"class": "topic-list partial mobile"}).find_all("li")
-        if topic_count:
-            self.topic_limit = min(topic_count, len(topics))
+        topic_limit = min(self.topic_count, len(topics))
         self.topics = tuple(
             {li.text.strip(): li.find("a").get("href")}
-            for li in topics[: self.topic_limit]
+            for li in topics[:topic_limit]
             if li.find("a") and li.find("a").get("href")
         )
 
-    def display_topics(self) -> None:
         self.clear_screen()
         print(set_color(CYAN, "Gündem Başlıkları\n"))
-
         for index, topic in enumerate(self.topics, start=1):
             title, entry_count = list(topic)[0].rsplit(" ", 1)
             print(set_color(GREEN, str(index)), end=" - ")
@@ -168,10 +161,8 @@ class Eksi:
 
         print(f"\n{set_color(RED, 'Programdan çıkmak için: (c)')}")
         print(set_color(CYAN, "Okumak istediğiniz başlık numarası: "))
-
-    def main(self, topic_count: int = 0) -> None:
-        self.clear_screen()
-        print(set_color(CYAN, "Gündem başlıkları yükleniyor..."))
-        self.load_topics(topic_count)
-        self.display_topics()
         self.prompt()
+
+    def main(self) -> None:
+        self.clear_screen()
+        self.display_topics()
