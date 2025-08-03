@@ -184,5 +184,7 @@ dmypy.json
 pyvenv.cfg
 pip-selfcheck.json
 
+# Auto-generated version file
+eksi/_version.py
 
 # End of https://www.gitignore.io/api/python
