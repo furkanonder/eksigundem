@@ -1,13 +1,14 @@
 import argparse
 import sys
 
+from eksi import __version__
 from eksi.color import RED, YELLOW, set_color
 from eksi.eksi import Eksi, EksiError
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Komut satırında Ekşi Sözlük!")
-    parser.add_argument("-v", "--versiyon", action="version", version="0.3.0")
+    parser.add_argument("-v", "--versiyon", action="version", version=__version__)
     parser.add_argument(
         "-b",
         "--baslik_sayisi",
