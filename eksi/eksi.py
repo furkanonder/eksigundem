@@ -1,8 +1,6 @@
-from __future__ import annotations
-
+from collections.abc import Iterator
 import os
 import sys
-from collections.abc import Iterator
 from textwrap import fill
 from typing import ClassVar
 from urllib.error import HTTPError, URLError
@@ -29,8 +27,7 @@ class Eksi:
 
     @staticmethod
     def clear_screen() -> None:
-        r"""If you are wondering how 'printf "\e[2J\e[3J\e[H"' works, you can
-        read the link below.
+        r"""If you are wondering how 'printf "\e[2J\e[3J\e[H"' works, you can read the link below.
 
         https://apple.stackexchange.com/questions/31872/how-do-i-reset-the-scrollback-in-the-terminal-via-a-shell-command
 
@@ -50,15 +47,13 @@ class Eksi:
             error_messages = {404: "Sayfa bulunamadı!", 403: "Erişim engellendi!"}
             if e.code in error_messages:
                 raise EksiError(error_messages[e.code]) from e
-            elif 500 <= e.code <= 511:
+            if 500 <= e.code <= 511:
                 raise EksiError("Sunucu hatası! Lütfen daha sonra tekrar deneyin.") from e
-            else:
-                raise EksiError(f"HTTP hatası: {e.code}") from e
+            raise EksiError(f"HTTP hatası: {e.code}") from e
         except URLError as e:
             if "name resolution" in str(e.reason).lower():
                 raise EksiError("Internet bağlantısı yok! Lütfen bağlantınızı kontrol edin.") from e
-            else:
-                raise EksiError(f"Bağlantı hatası: {e.reason}") from e
+            raise EksiError(f"Bağlantı hatası: {e.reason}") from e
 
     def get_entries(self, url: str) -> Iterator[tuple[str, ...]]:
         soup = self.get_soup(url)
@@ -113,27 +108,22 @@ class Eksi:
 
     def prompt(self) -> None:
         while True:
-            try:
-                cmd = input(">>> ").strip().lower()
-                if cmd == "c":
-                    sys.exit(0)
-                elif cmd == "g":
-                    self.display_topics()
-                elif self.topic_url:
-                    if cmd == "s":
-                        self.page_num += 1
-                        self.get_page()
-                    elif cmd == "o":
-                        self.page_num -= 1
-                        self.get_page()
-                    else:
-                        print(set_color(RED, "Geçersiz girdi! (s)onraki, (o)nceki, (g)ündem, (c)ıkış"))
-                else:
-                    self.handle_topic_selection(cmd)
-            except (KeyboardInterrupt, EOFError):
+            cmd = input(">>> ").strip().lower()
+            if cmd == "c":
                 sys.exit(0)
-            except Exception as e:
-                print(set_color(RED, f"Beklenmeyen hata: {e}"))
+            elif cmd == "g":
+                self.display_topics()
+            elif self.topic_url:
+                if cmd == "s":
+                    self.page_num += 1
+                    self.get_page()
+                elif cmd == "o":
+                    self.page_num -= 1
+                    self.get_page()
+                else:
+                    print(set_color(RED, "Geçersiz girdi! (s)onraki, (o)nceki, (g)ündem, (c)ıkış"))
+            else:
+                self.handle_topic_selection(cmd)
 
     def display_topics(self) -> None:
         self.topic_title, self.topic_url, self.page_num = "", "", 1
@@ -143,10 +133,10 @@ class Eksi:
 
         self.clear_screen()
         print(set_color(CYAN, "Gündem Başlıkları\n"))
-        for index, (title, url) in enumerate(self.topics, start=1):
-            title, entry_count = title.rsplit(" ", 1)
+        for index, (title, _) in enumerate(self.topics, start=1):
+            entry_title, entry_count = title.rsplit(" ", 1)
             print(set_color(GREEN, f"{index}"), end=" - ")
-            print(set_color(YELLOW, title), end=" ")
+            print(set_color(YELLOW, entry_title), end=" ")
             print(set_color(BLUE, entry_count))
 
         print(f"\n{set_color(RED, 'Programdan çıkmak için: (c)')}")
