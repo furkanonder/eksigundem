@@ -24,7 +24,7 @@ def main() -> None:
     except EksiError as e:
         print(set_color(RED, f"Hata: {e}"))
         sys.exit(1)
-    except KeyboardInterrupt:
+    except (KeyboardInterrupt, EOFError):
         sys.exit(0)
     except Exception as e:  # noqa: BLE001
         print(set_color(RED, f"Beklenmeyen hata: {e}"))
