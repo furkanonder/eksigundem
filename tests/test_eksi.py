@@ -13,12 +13,12 @@ class TestEksiClass(unittest.TestCase):
 
     def test_init(self):
         eksi = Eksi(topic_count=5)
-        self.assertEqual(eksi.topic_count, 5)
-        self.assertEqual(eksi.page_num, 1)
-        self.assertEqual(eksi.topic_title, "")
-        self.assertEqual(eksi.topic_url, "")
-        self.assertEqual(eksi.topics, [])
-        self.assertEqual(eksi.base_url, "https://eksisozluk.com/")
+        assert eksi.topic_count == 5
+        assert eksi.page_num == 1
+        assert eksi.topic_title == ""
+        assert eksi.topic_url == ""
+        assert eksi.topics == []
+        assert eksi.base_url == "https://eksisozluk.com/"
 
     @patch("os.name", "nt")
     @patch("os.system")
@@ -40,7 +40,7 @@ class TestEksiClass(unittest.TestCase):
         mock_urlopen.return_value = mock_response
 
         result = Eksi.get_soup("http://test.com")
-        self.assertIsInstance(result, Soup)
+        assert isinstance(result, Soup)
         mock_request.assert_called_once_with("http://test.com", headers={"User-Agent": "Mozilla/5.0"})
         mock_urlopen.assert_called_once()
 
@@ -51,7 +51,7 @@ class TestEksiClass(unittest.TestCase):
         with self.assertRaises(EksiError) as context:
             Eksi.get_soup("http://test.com")
 
-        self.assertEqual(f"{context.exception}", "Sayfa bulunamadı!")
+        assert f"{context.exception}" == "Sayfa bulunamadı!"
 
     @patch("eksi.eksi.urlopen")
     def test_get_soup_403_error(self, mock_urlopen):
@@ -60,7 +60,7 @@ class TestEksiClass(unittest.TestCase):
         with self.assertRaises(EksiError) as context:
             Eksi.get_soup("http://test.com")
 
-        self.assertEqual(f"{context.exception}", "Erişim engellendi!")
+        assert f"{context.exception}" == "Erişim engellendi!"
 
     @patch("eksi.eksi.urlopen")
     def test_get_soup_500_error(self, mock_urlopen):
@@ -69,7 +69,7 @@ class TestEksiClass(unittest.TestCase):
         with self.assertRaises(EksiError) as context:
             Eksi.get_soup("http://test.com")
 
-        self.assertEqual(f"{context.exception}", "Sunucu hatası! Lütfen daha sonra tekrar deneyin.")
+        assert f"{context.exception}" == "Sunucu hatası! Lütfen daha sonra tekrar deneyin."
 
     @patch("eksi.eksi.urlopen")
     def test_get_soup_url_error(self, mock_urlopen):
@@ -78,7 +78,7 @@ class TestEksiClass(unittest.TestCase):
         with self.assertRaises(EksiError) as context:
             Eksi.get_soup("http://test.com")
 
-        self.assertIn("Internet bağlantısı yok!", f"{context.exception}")
+        assert "Internet bağlantısı yok!" in f"{context.exception}"
 
     @patch("eksi.eksi.urlopen")
     def test_get_soup_generic_url_error(self, mock_urlopen):
@@ -87,7 +87,7 @@ class TestEksiClass(unittest.TestCase):
         with self.assertRaises(EksiError) as context:
             Eksi.get_soup("http://test.com")
 
-        self.assertIn("Bağlantı hatası:", f"{context.exception}")
+        assert "Bağlantı hatası:" in f"{context.exception}"
 
     def test_get_entries(self):
         html = """
@@ -111,11 +111,11 @@ class TestEksiClass(unittest.TestCase):
         with patch.object(self.eksi, "get_soup") as mock_get_soup:
             mock_get_soup.return_value = real_soup
             entries = list(self.eksi.get_entries("http://test.com"))
-            self.assertEqual(len(entries), 2)
-            self.assertIsInstance(entries[0], tuple)
+            assert len(entries) == 2
+            assert isinstance(entries[0], tuple)
             first_entry = entries[0]
-            self.assertEqual(first_entry[0], "Test entry content")
-            self.assertEqual(first_entry[1], "author1date1")
+            assert first_entry[0] == "Test entry content"
+            assert first_entry[1] == "author1date1"
 
     @patch("builtins.print")
     @patch.object(Eksi, "clear_screen")
@@ -140,16 +140,15 @@ class TestEksiClass(unittest.TestCase):
             mock_get_soup.return_value = real_soup
             self.eksi.reader()
             mock_clear.assert_called_once()
-            self.assertTrue(mock_print.called)
+            assert mock_print.called
 
-    @patch("builtins.print")
-    def test_handle_topic_selection_valid(self, mock_print):
+    def test_handle_topic_selection_valid(self):
         self.eksi.topics = [("Topic 1", "topic-1"), ("Topic 2", "topic-2")]
 
         with patch.object(self.eksi, "reader") as mock_reader:
             self.eksi.handle_topic_selection("1")
-            self.assertEqual(self.eksi.topic_title, "Topic 1")
-            self.assertEqual(self.eksi.topic_url, "topic-1")
+            assert self.eksi.topic_title == "Topic 1"
+            assert self.eksi.topic_url == "topic-1"
             mock_reader.assert_called_once()
 
     @patch("builtins.print")
@@ -157,14 +156,14 @@ class TestEksiClass(unittest.TestCase):
         self.eksi.topics = [("Topic 1", "topic-1")]
         self.eksi.handle_topic_selection("5")
         mock_print.assert_called()
-        self.assertIn("Geçersiz girdi!", mock_print.call_args[0][0])
+        assert "Geçersiz girdi!" in mock_print.call_args[0][0]
 
     @patch("builtins.print")
     def test_handle_topic_selection_invalid_input(self, mock_print):
         self.eksi.topics = [("Topic 1", "topic-1")]
         self.eksi.handle_topic_selection("abc")
         mock_print.assert_called()
-        self.assertIn("Geçersiz girdi!", mock_print.call_args[0][0])
+        assert "Geçersiz girdi!" in mock_print.call_args[0][0]
 
     @patch("builtins.print")
     @patch.object(Eksi, "clear_screen")
@@ -185,9 +184,9 @@ class TestEksiClass(unittest.TestCase):
             mock_get_soup.return_value = real_soup
             self.eksi.display_topics()
             mock_clear.assert_called_once()
-            self.assertTrue(mock_print.called)
+            assert mock_print.called
             mock_prompt.assert_called_once()
-            self.assertEqual(len(self.eksi.topics), 2)
+            assert len(self.eksi.topics) == 2
 
     def test_get_page_first_page_warning(self):
         self.eksi.page_num = 0
@@ -196,8 +195,8 @@ class TestEksiClass(unittest.TestCase):
             mock_reader.assert_called_once_with(0)
             mock_print.assert_called()
             print_args = mock_print.call_args[0][0]
-            self.assertIn("Şu an ilk sayfadasınız!", print_args)
-            self.assertEqual(self.eksi.page_num, 1)
+            assert "Şu an ilk sayfadasınız!" in print_args
+            assert self.eksi.page_num == 1
 
     def test_get_page_last_page_warning(self):
         self.eksi.page_num = 5
@@ -207,10 +206,10 @@ class TestEksiClass(unittest.TestCase):
             mock_reader.side_effect = [EksiError("Sayfa bulunamadı"), None]
             self.eksi.get_page()
             # Should call reader twice: first with page 5 (fails), then with page 4 (succeeds)
-            self.assertEqual(mock_reader.call_count, 2)
+            assert mock_reader.call_count == 2
             mock_reader.assert_any_call(5)  # First call with original page
             mock_reader.assert_any_call(4)  # Second call with decremented page
             mock_print.assert_called()
             print_args = mock_print.call_args[0][0]
-            self.assertIn("en son sayfadasınız", print_args)
-            self.assertEqual(self.eksi.page_num, 4)
+            assert "en son sayfadasınız" in print_args
+            assert self.eksi.page_num == 4
