@@ -53,7 +53,7 @@ dev = [
 "Documentation" = "https://github.com/furkanonder/eksigundem#readme"
 "Repository" = "https://github.com/furkanonder/eksigundem"
 "Bug Reports" = "https://github.com/furkanonder/eksigundem/issues"
-"Changelog" = "https://github.com/furkanonder/eksigundem/releases"
+"Changelog" = "https://github.com/furkanonder/eksigundem/CHANGELOG.md"
 "Funding" = "https://github.com/sponsors/furkanonder"
 
 [project.scripts]
