@@ -1,4 +1,5 @@
 from collections.abc import Iterator
+import gzip
 import os
 import sys
 from textwrap import fill
@@ -40,9 +41,30 @@ class Eksi:
     @staticmethod
     def get_soup(url: str) -> Soup:
         try:
-            request = Request(url, headers={"User-Agent": "Mozilla/5.0"})
+            # Browser-like headers to avoid being blocked by eksisozluk.com
+            headers = {
+                # Mimic Firefox 147
+                "User-Agent": "Mozilla/5.0 (X11; Linux x86_64; rv:147.0) Gecko/20100101 Firefox/147.0",
+                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",  # Accept types
+                "Accept-Language": "tr-TR,tr;q=0.9",  # Turkish locale
+                "Accept-Encoding": "gzip",  # Enable compression
+                "Alt-Used": "eksisozluk.com",  # Firefox HTTP/2 coalescing header
+                "Connection": "keep-alive",  # Reuse TCP connection
+                "Upgrade-Insecure-Requests": "1",  # Prefer HTTPS
+                # Sec-Fetch headers: tell server this is a trusted user-initiated request
+                "Sec-Fetch-Dest": "document",  # Fetching a web page
+                "Sec-Fetch-Mode": "navigate",  # Top-level navigation (not fetch/XHR)
+                "Sec-Fetch-Site": "none",  # Direct URL entry (not from another site)
+                "Sec-Fetch-User": "?1",  # Triggered by user action (click/keypress)
+            }
+            request = Request(url, headers=headers)
             response = urlopen(request, timeout=10)
-            return Soup(response.read().decode("utf-8"), "html.parser")
+            data = response.read()
+            # Decompress if server returned gzip-encoded response
+            encoding = response.headers.get("Content-Encoding", "")
+            if encoding == "gzip":
+                data = gzip.decompress(data)
+            return Soup(data.decode("utf-8"), "html.parser")
         except HTTPError as e:
             error_messages = {404: "Sayfa bulunamadı!", 403: "Erişim engellendi!"}
             if e.code in error_messages:

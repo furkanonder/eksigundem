@@ -37,11 +37,17 @@ class TestEksiClass(unittest.TestCase):
     def test_get_soup_success(self, mock_request, mock_urlopen):
         mock_response = Mock()
         mock_response.read.return_value = b"<html><body>Test</body></html>"
+        mock_response.headers = {"Content-Encoding": ""}  # No gzip
         mock_urlopen.return_value = mock_response
 
         result = Eksi.get_soup("http://test.com")
         assert isinstance(result, Soup)
-        mock_request.assert_called_once_with("http://test.com", headers={"User-Agent": "Mozilla/5.0"})
+        # Verify Request was called with browser-like headers
+        mock_request.assert_called_once()
+        call_args = mock_request.call_args
+        assert call_args[0][0] == "http://test.com"
+        assert "User-Agent" in call_args[1]["headers"]
+        assert "Firefox" in call_args[1]["headers"]["User-Agent"]
         mock_urlopen.assert_called_once()
 
     @patch("eksi.eksi.urlopen")
