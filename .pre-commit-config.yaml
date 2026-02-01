@@ -24,3 +24,12 @@ repos:
         args: [--fix]
       # Formatter
       - id: ruff-format
+
+  - repo: local
+    hooks:
+      - id: unittest
+        name: unittest
+        entry: python -m unittest discover -v
+        language: system
+        pass_filenames: false
+        always_run: true
