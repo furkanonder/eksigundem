@@ -1,45 +1,47 @@
-<div align="center">
-  <a href="https://github.com/furkanonder/eksigundem/actions"><img alt="Actions Status" src="https://github.com/furkanonder/eksigundem/workflows/Test/badge.svg"></a>
-  <a href="https://github.com/furkanonder/eksigundem/issues"><img alt="GitHub issues" src="https://img.shields.io/github/issues/furkanonder/eksigundem"></a>
-  <a href="https://github.com/furkanonder/eksigundem/stargazers"><img alt="GitHub stars" src="https://img.shields.io/github/stars/furkanonder/eksigundem"></a>
-  <a href="https://github.com/furkanonder/eksigundem/blob/main/LICENSE"><img alt="GitHub license" src="https://img.shields.io/github/license/furkanonder/eksigundem"></a>
-  <a href="https://pepy.tech/project/eksi"><img alt="Downloads" src="https://pepy.tech/badge/eksi"></a>
-</div>
-
 # EkşiGündem
 
-Turkish is the only language available on the [ekisozluk.com](https://eksisozluk.com/),
-so the readme file is written in Turkish. In a nutshell, the project helps you browse
-popular trending topics and read them on the command line.
+[![Actions Status](https://github.com/furkanonder/eksigundem/workflows/Test/badge.svg)](https://github.com/furkanonder/eksigundem/actions)
+[![PyPI - Python Version](https://img.shields.io/pypi/pyversions/eksi)](https://pypi.org/project/eksi/)
+[![PyPI](https://img.shields.io/pypi/v/eksi)](https://pypi.org/project/eksi/)
+[![Downloads](https://pepy.tech/badge/eksi)](https://pepy.tech/project/eksi)
+[![License](https://img.shields.io/github/license/furkanonder/eksigundem)](https://github.com/furkanonder/eksigundem/blob/main/LICENSE)
+
+
+Turkish is the only language available on the [eksisozluk.com](https://eksisozluk.com/),
+so the README is written in Turkish. In a nutshell, this CLI tool helps you browse
+popular trending topics and read entries from Ekşi Sözlük on the command line.
 
 Ekşi Gündem, komut satırından [Ekşi Sözlük'ün](https://eksisozluk.com/) gündem
 başlıklarını ve entrylerini okumanıza yarayan bir araçtır.
 
-# Kurulum
+## Kurulum
 
-Python paket yöneticisi ile kolayca kurabilirsiniz.
+Python 3.10 veya üzeri gereklidir.
 
-```python
+```bash
 pip install eksi
 ```
 
-Paket yöneticisi olmadan, bu şekilde de kurabilirsiniz.
+## Kullanım
 
-```python
-python setup.py install
-```
-
-# Çalıştırma
-
-Terminalinize
+Terminalinize `eksi` yazarak başlatabilirsiniz:
 
 ```bash
 eksi
 ```
 
-yazarak kullanabilirsiniz. Ek olarak, -b parametresini kullanarak okumak istediğiniz
-başlık sayısını belirtebilirsiniz.
+### Parametreler
 
-```bash
-eksi -b 10
-```
+| Parametre               | Açıklama                                          |
+|-------------------------|---------------------------------------------------|
+| `-b`, `--baslik_sayisi` | Gösterilecek başlık sayısı (1-50, varsayılan: 50) |
+| `-v`, `--versiyon`      | Sürüm bilgisini gösterir                          |
+
+
+## Değişiklik Günlüğü
+
+Tüm değişiklikler için [CHANGELOG.md](CHANGELOG.md) dosyasına bakın.
+
+## Lisans
+
+[MIT](LICENSE)
