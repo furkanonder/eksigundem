@@ -42,6 +42,10 @@ eksi
 
 Tüm değişiklikler için [CHANGELOG.md](CHANGELOG.md) dosyasına bakın.
 
+## Windows
+
+Windows kullanıcılarının EkşiGündem'i kullanırken doğru terminal renklendirmesi için PowerShell kullanması önerilir.
+
 ## Lisans
 
 [MIT](LICENSE)
