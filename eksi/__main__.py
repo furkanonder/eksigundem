@@ -2,7 +2,7 @@ import argparse
 import sys
 
 from eksi import __version__
-from eksi.color import RED, YELLOW, set_color
+from eksi.color import RED, set_color
 from eksi.eksi import Eksi, EksiError
 
 
@@ -29,7 +29,6 @@ def main() -> None:
         sys.exit(0)
     except Exception as e:  # noqa: BLE001
         print(set_color(RED, f"Beklenmeyen hata: {e}"))
-        print(set_color(YELLOW, "Bu bir hata ise, lütfen GitHub'da issue açın."))
         sys.exit(1)
 
 
