@@ -38,6 +38,23 @@ eksi
 | `-v`, `--versiyon`      | Sürüm bilgisini gösterir                          |
 
 
+### Tuş Kısayolları
+
+| Tuş                      | Eylem                 |
+|--------------------------|-----------------------|
+| `Enter`                  | 1 satır aşağı kaydır  |
+| `Space`                  | Sayfa aşağı           |
+| `↑` (yukarı yön tuşu)    | 1 satır yukarı kaydır |
+| `↓` (aşağı yön tuşu)     | 1 satır aşağı kaydır  |
+| `Home`                   | Sayfa başına git      |
+| `End`                    | Sayfa sonuna git      |
+| `Page Up`                | Sayfa yukarı          |
+| `Page Down`              | Sayfa aşağı           |
+| `s`                      | Sonraki sayfa         |
+| `o`                      | Önceki sayfa          |
+| `g`                      | Gündem listesine dön  |
+| `c`                      | Çıkış                 |
+
 ## Değişiklik Günlüğü
 
 Tüm değişiklikler için [CHANGELOG.md](CHANGELOG.md) dosyasına bakın.
