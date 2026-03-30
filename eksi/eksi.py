@@ -1,45 +1,123 @@
 from collections.abc import Iterator
-import gzip
-import os
+from contextlib import contextmanager
+import shutil
 import sys
-from textwrap import fill
+import termios
+import tty
 from typing import Final
-from urllib.error import HTTPError, URLError
-from urllib.request import Request, urlopen
 
-from bs4 import BeautifulSoup as Soup
-
+from eksi.client import EksiClient, EksiError
 from eksi.color import BLUE, CYAN, GREEN, MAGENTA, RED, WHITE, YELLOW, set_color
 
 BASE_URL: Final = "https://eksisozluk.com/"
 
-# CSS Selectors
-ENTRY_LIST: Final = "ul#entry-item-list"
-ENTRY_ITEM: Final = "li[data-id]"
-ENTRY_CONTENT: Final = "div.content"
-ENTRY_AUTHOR: Final = "a.entry-author"
-ENTRY_DATE: Final = "a.entry-date"
-TOPIC_LIST: Final = "ul.topic-list.partial li a"
+# Minimum terminal size for proper rendering
+MIN_COLS: Final = 80
+MIN_LINES: Final = 20
 
-# HTTP Headers (mimic Firefox to avoid being blocked)
-HEADERS: Final = {
-    "User-Agent": "Mozilla/5.0 (X11; Linux x86_64; rv:147.0) Gecko/20100101 Firefox/147.0",
-    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",  # Accept types
-    "Accept-Language": "tr-TR,tr;q=0.9",  # Turkish locale
-    "Accept-Encoding": "gzip",  # Enable compression
-    "Alt-Used": "eksisozluk.com",  # Firefox HTTP/2 coalescing header
-    "Connection": "keep-alive",  # Reuse TCP connection
-    "Upgrade-Insecure-Requests": "1",  # Prefer HTTPS
-    # Sec-Fetch headers: tell server this is a trusted user-initiated request
-    "Sec-Fetch-Dest": "document",  # Fetching a web page
-    "Sec-Fetch-Mode": "navigate",  # Top-level navigation (not fetch/XHR)
-    "Sec-Fetch-Site": "none",  # Direct URL entry (not from another site)
-    "Sec-Fetch-User": "?1",  # Triggered by user action (click/keypress)
-}
+VALID_KEYS: Final = {"s", "o", "g", "c"}
+
+PAGER_PROMPT: Final = (
+    f"{set_color(WHITE, '(s)onraki')} {set_color(YELLOW, '(o)nceki')} {set_color(BLUE, '(g)ündem')} "
+    f"{set_color(RED, '(c)ıkış')}"
+)
+
+# ANSI escape sequences
+ALT_SCREEN_ON: Final = "\033[?1049h\033[?25l"  # Enter an alternate screen buffer, hide the cursor
+ALT_SCREEN_OFF: Final = "\033[?25h\033[?1049l"  # Show cursor, exit alternate screen buffer
+CLEAR_SCREEN: Final = "\033[2J\033[3J\033[H"  # Clear the screen, scrollback, and cursor home
 
 
-class EksiError(Exception):
-    pass
+def getchar() -> str:
+    return sys.stdin.read(1)
+
+
+class Terminal:
+    @staticmethod
+    def flush(*parts: str) -> None:
+        sys.stdout.write("".join(parts))
+        sys.stdout.flush()
+
+    @staticmethod
+    @contextmanager
+    def cbreak_mode() -> Iterator[None]:
+        fd = old = None
+        try:
+            fd = sys.stdin.fileno()
+            old = termios.tcgetattr(fd)
+            tty.setcbreak(fd)
+        except termios.error:
+            pass
+        try:
+            yield
+        finally:
+            if fd is not None and old is not None:
+                termios.tcsetattr(fd, termios.TCSAFLUSH, old)
+
+    @staticmethod
+    def check_size() -> None:
+        term = shutil.get_terminal_size()
+        if term.columns < MIN_COLS or term.lines < MIN_LINES:
+            Terminal.flush(set_color(RED, f"Terminal boyutu çok küçük! En az {MIN_COLS}x{MIN_LINES} olmalıdır.\n"))
+            sys.exit(1)
+
+
+class Pager:
+    def __init__(self, lines: list[str], title: str = "", warning: str = "") -> None:
+        self.lines = lines
+        self.title = title
+        self.warning = warning
+
+    @staticmethod
+    def compute_scroll(c: str, scroll_pos: int, page_size: int, max_scroll: int) -> int:  # noqa: PLR0911
+        if c in ("\r", "\n"):
+            return min(scroll_pos + 1, max_scroll)
+        if c == " ":
+            return min(scroll_pos + page_size, max_scroll)
+        if c != "\x1b" or getchar() != "[":
+            return scroll_pos
+        match getchar():
+            case "A":  # Arrow up
+                return max(scroll_pos - 1, 0)
+            case "B":  # Arrow down
+                return min(scroll_pos + 1, max_scroll)
+            case "H":  # Home
+                return 0
+            case "F":  # End
+                return max_scroll
+            case "5":  # PgUp
+                getchar()  # consume trailing ~
+                return max(scroll_pos - page_size, 0)
+            case "6":  # PgDn
+                getchar()  # consume trailing ~
+                return min(scroll_pos + page_size, max_scroll)
+            case _:
+                return scroll_pos
+
+    def _render(self, scroll_pos: int, page_size: int, max_scroll: int) -> None:
+        visible_lines = "\n".join(self.lines[scroll_pos : scroll_pos + page_size])
+        scroll_hint = set_color(CYAN, "-- Devamını oku --\n") if scroll_pos < max_scroll else "\n"
+        Terminal.flush(
+            CLEAR_SCREEN,
+            f"{set_color(GREEN, self.title)}\n",
+            f"{visible_lines}\n",
+            f"\n{set_color(RED, self.warning)}\n" if self.warning else scroll_hint,
+            PAGER_PROMPT,
+        )
+
+    def run(self) -> str:
+        # 2 = prompt line + scroll hint/warning line; +1 each if title or warning present
+        reserved = 2 + bool(self.title) + bool(self.warning)
+        page_size = max(shutil.get_terminal_size().lines - reserved, 1)
+        max_scroll = max(len(self.lines) - page_size, 0)
+        scroll_pos = 0
+
+        while True:
+            self._render(scroll_pos, page_size, max_scroll)
+            c = getchar()
+            if not c or c in VALID_KEYS:
+                return c or "g"
+            scroll_pos = self.compute_scroll(c, scroll_pos, page_size, max_scroll)
 
 
 class Eksi:
@@ -49,123 +127,81 @@ class Eksi:
         self.page_num = 1
         self.topic_title = ""
         self.topic_url = ""
-        self.nav_help = (
-            f"{set_color(WHITE, '(s)onraki')}, "
-            f"{set_color(YELLOW, '(o)nceki')}, "
-            f"{set_color(BLUE, '(g)ündem')}, "
-            f"{set_color(RED, '(c)ıkış')}"
+
+    def _load_entries(self, page_num: int = 0) -> list[str]:
+        Terminal.flush(
+            CLEAR_SCREEN,
+            f"{set_color(GREEN, self.topic_title)}\n",
+            f"{set_color(CYAN, 'Yükleniyor...')}\n",
         )
-
-    @staticmethod
-    def clear_screen() -> None:
-        # \e[2J: clear screen, \e[3J: clear scrollback, \e[H: move cursor to top
-        os.system("cls" if os.name == "nt" else r'printf "\e[2J\e[3J\e[H"')
-
-    @staticmethod
-    def get_soup(url: str) -> Soup:
-        try:
-            request = Request(url, headers=HEADERS)
-            response = urlopen(request, timeout=10)
-            data = response.read()
-            # Decompress if server returned gzip-encoded response
-            encoding = response.headers.get("Content-Encoding", "")
-            if encoding == "gzip":
-                data = gzip.decompress(data)
-            return Soup(data.decode("utf-8"), "html.parser")
-        except HTTPError as e:
-            error_messages = {404: "Sayfa bulunamadı!", 403: "Erişim engellendi!"}
-            if e.code in error_messages:
-                raise EksiError(error_messages[e.code]) from e
-            if 500 <= e.code <= 511:
-                raise EksiError("Sunucu hatası! Lütfen daha sonra tekrar deneyin.") from e
-            raise EksiError(f"HTTP hatası: {e.code}") from e
-        except URLError as e:
-            if "name resolution" in str(e.reason).lower():
-                raise EksiError("Internet bağlantısı yok! Lütfen bağlantınızı kontrol edin.") from e
-            raise EksiError(f"Bağlantı hatası: {e.reason}") from e
-
-    def get_entries(self, url: str) -> Iterator[tuple[str, str, str]]:
-        soup = self.get_soup(url)
-        entries = soup.select_one(ENTRY_LIST).select(ENTRY_ITEM)
-
-        for entry in entries:
-            content = entry.select_one(ENTRY_CONTENT)
-            author = entry.select_one(ENTRY_AUTHOR).text.strip()
-            date_time = entry.select_one(ENTRY_DATE).text.strip()
-            # Add url to entry text
-            for a in content.select("a[href]"):
-                link = a["href"]
-                if not link.startswith("/?q") or link.startswith("/entry"):
-                    a.string = f" {link} "
-            for tag in content.select("*"):
-                tag.unwrap()
-            if text := fill(content.text, width=80, break_long_words=False, break_on_hyphens=False).strip():
-                yield text, author, date_time
-
-    def reader(self, page_num: int = 0) -> None:
-        self.clear_screen()
-        print(set_color(GREEN, self.topic_title))
         page_url = f"{BASE_URL}{self.topic_url}{f'&p={page_num}' if page_num else ''}"
 
-        for content, author, date_time in self.get_entries(page_url):
-            print(set_color(YELLOW, f"\n{content}"))
-            print(set_color(GREEN, author), set_color(CYAN, date_time))
+        lines: list[str] = []
+        for content, author, date_time in EksiClient.get_entries(page_url):
+            lines.extend(
+                (
+                    "",
+                    *(set_color(YELLOW, text_line) for text_line in content.splitlines()),
+                    f"{set_color(GREEN, author)} {set_color(CYAN, date_time)}",
+                ),
+            )
+        return lines
 
-        print(f"\n{self.nav_help}")
-
-    def get_page(self) -> None:
+    def _get_page(self) -> str:
+        warning = ""
+        if self.page_num <= 0:
+            self.page_num = 1
+            warning = "Şu an ilk sayfadasınız!"
         try:
-            self.reader(self.page_num)
-            if self.page_num <= 0:
-                print(set_color(RED, "Şu an ilk sayfadasınız!"))
-                self.page_num = 1
+            lines = self._load_entries(self.page_num)
         except EksiError:
             self.page_num -= 1
-            self.reader(self.page_num)
-            print(set_color(RED, "Şu an en son sayfadasınız!"))
+            warning = "Şu an en son sayfadasınız!"
+            lines = self._load_entries(self.page_num)
+        return Pager(lines, self.topic_title, warning).run()
 
-    def handle_topic_selection(self, cmd: str) -> None:
-        try:
-            topic_index = int(cmd) - 1
-            if 0 <= topic_index < len(self.topics):
-                self.topic_title, self.topic_url = self.topics[topic_index]
-                self.reader()
-            else:
-                print(set_color(RED, f"Geçersiz girdi! 1-{len(self.topics)} arasında bir sayı girin."))
-        except ValueError:
-            print(set_color(RED, "Geçersiz girdi! Lütfen bir sayı girin."))
+    def _enter_topic(self) -> None:
+        with Terminal.cbreak_mode():
+            Terminal.flush(ALT_SCREEN_ON)
+            try:
+                lines = self._load_entries()
+                cmd = Pager(lines, self.topic_title).run()
+                while cmd in ("s", "o"):
+                    self.page_num += 1 if cmd == "s" else -1
+                    cmd = self._get_page()
+            finally:
+                Terminal.flush(ALT_SCREEN_OFF)
+        if cmd == "c":
+            sys.exit(0)
+        if cmd == "g":
+            self.display_topics()
 
     def prompt(self) -> None:
+        Terminal.flush(f"{set_color(RED, '(c)ıkış')}\n")
         while True:
-            print(set_color(MAGENTA, ">>> "), end="")
-            cmd = input().strip().lower()
+            cmd = input(">>> ").strip().lower()
             match cmd:
                 case "c":
                     sys.exit(0)
                 case "g":
                     self.display_topics()
-                case "s" if self.topic_url:
-                    self.page_num += 1
-                    self.get_page()
-                case "o" if self.topic_url:
-                    self.page_num -= 1
-                    self.get_page()
-                case _ if self.topic_url:
-                    print(set_color(RED, "Geçersiz girdi!"), self.nav_help)
+                case num if num.isdigit() and 1 <= (index := int(num)) <= len(self.topics):
+                    self.topic_title, self.topic_url = self.topics[index - 1]
+                    self._enter_topic()
                 case _:
-                    self.handle_topic_selection(cmd)
+                    Terminal.flush(set_color(RED, f"Geçersiz giriş! 1-{len(self.topics)} arası bir sayı girin.\n"))
 
     def display_topics(self) -> None:
         self.topic_title, self.topic_url, self.page_num = "", "", 1
-        soup = self.get_soup(f"{BASE_URL}basliklar/m/populer")
-        self.topics = [(a.text.strip(), a["href"]) for a in soup.select(TOPIC_LIST)][: self.topic_count]
+        self.topics = EksiClient.get_topics(f"{BASE_URL}basliklar/m/populer", self.topic_count)
 
-        self.clear_screen()
+        parts = [CLEAR_SCREEN]
         for i, (title, _) in enumerate(self.topics, start=1):
             name, count = title.rsplit(" ", 1)
-            print(f"{set_color(MAGENTA, f'{i} -')} {set_color(YELLOW, name)} {set_color(CYAN, count)}")
-        print(set_color(RED, "\n(c)ıkış"))
-        self.prompt()
+            parts.append(f"{set_color(MAGENTA, f'{i} -')} {set_color(YELLOW, name)} {set_color(CYAN, count)}\n")
+        Terminal.flush(*parts)
 
     def main(self) -> None:
+        Terminal.check_size()
         self.display_topics()
+        self.prompt()

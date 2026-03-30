@@ -2,8 +2,9 @@ import argparse
 import sys
 
 from eksi import __version__
+from eksi.client import EksiError
 from eksi.color import RED, set_color
-from eksi.eksi import Eksi, EksiError
+from eksi.eksi import Eksi
 
 
 def main() -> None:
