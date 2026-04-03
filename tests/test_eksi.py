@@ -7,7 +7,8 @@ from urllib.error import HTTPError, URLError
 from bs4 import BeautifulSoup as Soup
 
 from eksi.client import EksiClient, EksiError
-from eksi.eksi import Eksi, Pager
+from eksi.eksi import Eksi
+from eksi.pager import Pager
 
 FIXTURES_DIR = Path(__file__).parent / "fixtures"
 
@@ -103,7 +104,7 @@ class TestEksiClient(unittest.TestCase):
 @patch("sys.stdout")
 class TestPager(unittest.TestCase):
     @patch("shutil.get_terminal_size", return_value=os.terminal_size((80, 50)))
-    @patch("eksi.eksi.getchar", return_value="g")
+    @patch("eksi.pager.getchar", return_value="g")
     def test_short_content(self, mock_getchar, _mock_size, _mock_stdout):
         """Short content still enters the pager, any key exits."""
         pager = Pager(lines=[f"line {i}" for i in range(10)])
@@ -111,7 +112,7 @@ class TestPager(unittest.TestCase):
         mock_getchar.assert_called_once()
 
     @patch("shutil.get_terminal_size", return_value=os.terminal_size((80, 6)))
-    @patch("eksi.eksi.getchar", side_effect=[" ", " ", "g"])
+    @patch("eksi.pager.getchar", side_effect=[" ", " ", "g"])
     def test_with_pause(self, mock_getchar, _mock_size, _mock_stdout):
         """Content exceeds terminal - Space scrolls, non-scroll key exits."""
         pager = Pager(lines=[f"line {i}" for i in range(12)])
@@ -120,7 +121,7 @@ class TestPager(unittest.TestCase):
         assert result == "g"
 
     @patch("shutil.get_terminal_size", return_value=os.terminal_size((80, 6)))
-    @patch("eksi.eksi.getchar", side_effect=[" ", "s"])
+    @patch("eksi.pager.getchar", side_effect=[" ", "s"])
     def test_returns_exit_key(self, mock_getchar, _mock_size, _mock_stdout):
         """Pager returns the key that caused exit."""
         pager = Pager(lines=[f"line {i}" for i in range(12)])
@@ -180,7 +181,7 @@ class TestEksi(unittest.TestCase):
             self.eksi.display_topics()
             assert self.eksi.topics == topics
 
-    @patch("eksi.eksi.getchar", side_effect=["1", "\n", KeyboardInterrupt])
+    @patch("eksi.terminal.getchar", side_effect=["1", "\n", KeyboardInterrupt])
     @patch.object(Eksi, "_enter_topic")
     @patch.object(Eksi, "display_topics")
     def test_prompt_select(self, _mock_display, mock_enter, _mock_getchar, _mock_stdout):
@@ -191,7 +192,7 @@ class TestEksi(unittest.TestCase):
         assert self.eksi.topic_title == "Topic"
         mock_enter.assert_called_once()
 
-    @patch("eksi.eksi.getchar", side_effect=KeyboardInterrupt)
+    @patch("eksi.terminal.getchar", side_effect=KeyboardInterrupt)
     def test_prompt_exit(self, _mock_getchar, _mock_stdout):
         """Prompt exits on Ctrl+C."""
         self.eksi.topics = [("t", "/t")] * 5
