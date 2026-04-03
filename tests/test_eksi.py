@@ -100,8 +100,8 @@ class TestEksiClient(unittest.TestCase):
             assert topics[0] == ("Topic 1 5", "/topic1--123?a=popular")
 
 
+@patch("sys.stdout")
 class TestPager(unittest.TestCase):
-    @patch("sys.stdout")
     @patch("shutil.get_terminal_size", return_value=os.terminal_size((80, 50)))
     @patch("eksi.eksi.getchar", return_value="g")
     def test_short_content(self, mock_getchar, _mock_size, _mock_stdout):
@@ -110,7 +110,6 @@ class TestPager(unittest.TestCase):
         pager.run()
         mock_getchar.assert_called_once()
 
-    @patch("sys.stdout")
     @patch("shutil.get_terminal_size", return_value=os.terminal_size((80, 6)))
     @patch("eksi.eksi.getchar", side_effect=[" ", " ", "g"])
     def test_with_pause(self, mock_getchar, _mock_size, _mock_stdout):
@@ -120,7 +119,6 @@ class TestPager(unittest.TestCase):
         assert mock_getchar.call_count == 3
         assert result == "g"
 
-    @patch("sys.stdout")
     @patch("shutil.get_terminal_size", return_value=os.terminal_size((80, 6)))
     @patch("eksi.eksi.getchar", side_effect=[" ", "s"])
     def test_returns_exit_key(self, mock_getchar, _mock_size, _mock_stdout):
@@ -131,11 +129,11 @@ class TestPager(unittest.TestCase):
         assert result == "s"
 
 
+@patch("sys.stdout")
 class TestEksi(unittest.TestCase):
     def setUp(self):
         self.eksi = Eksi(topic_count=10)
 
-    @patch("sys.stdout")
     def test_load_entries(self, _mock_stdout):
         """Should fetch entries and return formatted lines."""
         html = load_fixture("entry_list.html")
@@ -148,7 +146,7 @@ class TestEksi(unittest.TestCase):
             assert isinstance(lines, list)
             assert len(lines) > 0
 
-    def test_get_page_first_page_warning(self):
+    def test_get_page_first_page_warning(self, _mock_stdout):
         """Page num 0 clamps to 1 and sets a warning."""
         self.eksi.page_num = 0
         with (
@@ -160,7 +158,7 @@ class TestEksi(unittest.TestCase):
             assert self.eksi.page_num == 1
             assert result == "g"
 
-    def test_get_page_last_page_warning(self):
+    def test_get_page_last_page_warning(self, _mock_stdout):
         """Past last page falls back to previous page and sets warning."""
         self.eksi.page_num = 5
         with (
@@ -175,7 +173,6 @@ class TestEksi(unittest.TestCase):
             assert self.eksi.page_num == 4
             assert result == "g"
 
-    @patch("sys.stdout")
     def test_display_topics(self, _mock_stdout):
         """Should fetch topics and populate self.topics."""
         topics = [("Topic 1 5", "/topic1--123?a=popular"), ("Topic 2 10", "/topic2")]
@@ -183,19 +180,20 @@ class TestEksi(unittest.TestCase):
             self.eksi.display_topics()
             assert self.eksi.topics == topics
 
-    @patch("builtins.input", side_effect=["1", EOFError])
+    @patch("eksi.eksi.getchar", side_effect=["1", "\n", KeyboardInterrupt])
     @patch.object(Eksi, "_enter_topic")
-    def test_prompt_select(self, mock_enter, _mock_input):
+    @patch.object(Eksi, "display_topics")
+    def test_prompt_select(self, _mock_display, mock_enter, _mock_getchar, _mock_stdout):
         """Prompt selects a topic and enters the topic view."""
         self.eksi.topics = [("Topic", "/topic")] * 5
-        with self.assertRaises(EOFError):
+        with self.assertRaises(KeyboardInterrupt):
             self.eksi.prompt()
         assert self.eksi.topic_title == "Topic"
         mock_enter.assert_called_once()
 
-    @patch("builtins.input", return_value="c")
-    def test_prompt_exit(self, _mock_input):
-        """Prompt exits on 'c'."""
+    @patch("eksi.eksi.getchar", side_effect=KeyboardInterrupt)
+    def test_prompt_exit(self, _mock_getchar, _mock_stdout):
+        """Prompt exits on Ctrl+C."""
         self.eksi.topics = [("t", "/t")] * 5
-        with self.assertRaises(SystemExit):
+        with self.assertRaises(KeyboardInterrupt):
             self.eksi.prompt()
