@@ -53,7 +53,7 @@ eksi
 | `s`                      | Sonraki sayfa         |
 | `o`                      | Önceki sayfa          |
 | `g`                      | Gündem listesine dön  |
-| `c`                      | Çıkış                 |
+| `Ctrl+C`                 | Çıkış                 |
 
 ## Değişiklik Günlüğü
 
