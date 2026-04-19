@@ -40,20 +40,22 @@ eksi
 
 ### Tuş Kısayolları
 
-| Tuş                      | Eylem                 |
-|--------------------------|-----------------------|
-| `Enter`                  | 1 satır aşağı kaydır  |
-| `Space`                  | Sayfa aşağı           |
-| `↑` (yukarı yön tuşu)    | 1 satır yukarı kaydır |
-| `↓` (aşağı yön tuşu)     | 1 satır aşağı kaydır  |
-| `Home`                   | Sayfa başına git      |
-| `End`                    | Sayfa sonuna git      |
-| `Page Up`                | Sayfa yukarı          |
-| `Page Down`              | Sayfa aşağı           |
-| `s`                      | Sonraki sayfa         |
-| `o`                      | Önceki sayfa          |
-| `g`                      | Gündem listesine dön  |
-| `Ctrl+C`                 | Çıkış                 |
+| Tuş                   | Eylem                 |
+|-----------------------|-----------------------|
+| `Enter`               | 1 satır aşağı kaydır  |
+| `Space`               | Sayfa aşağı           |
+| `↑` (yukarı yön tuşu) | 1 satır yukarı kaydır |
+| `↓` (aşağı yön tuşu)  | 1 satır aşağı kaydır  |
+| `Home`                | Sayfa başına git      |
+| `End`                 | Sayfa sonuna git      |
+| `Page Up`             | Sayfa yukarı          |
+| `Page Down`           | Sayfa aşağı           |
+| `i`                   | İlk sayfa             |
+| `o`                   | Önceki sayfa          |
+| `s`                   | Sonraki sayfa         |
+| `e`                   | En son sayfa          |
+| `g`                   | Gündem listesine dön  |
+| `Ctrl+C`              | Çıkış                 |
 
 ## Değişiklik Günlüğü
 

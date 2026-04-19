@@ -26,46 +26,29 @@ def getchar() -> str:
     return sys.stdin.read(1)
 
 
-class Terminal:
-    @staticmethod
-    def flush(*parts: str) -> None:
-        sys.stdout.write("".join(parts))
-        sys.stdout.flush()
+def flush(*parts: str) -> None:
+    sys.stdout.write("".join(parts))
+    sys.stdout.flush()
 
-    @staticmethod
-    @contextmanager
-    def cbreak_mode() -> Iterator[None]:
-        fd = old = None
-        try:
-            fd = sys.stdin.fileno()
-            old = termios.tcgetattr(fd)
-            tty.setcbreak(fd)
-        except (OSError, termios.error):
-            pass
-        try:
-            yield
-        finally:
-            if fd is not None and old is not None:
-                termios.tcsetattr(fd, termios.TCSAFLUSH, old)
 
-    @staticmethod
-    def check_size() -> None:
-        term = shutil.get_terminal_size()
-        if term.columns < MIN_COLS or term.lines < MIN_LINES:
-            Terminal.flush(set_color(RED, f"Terminal boyutu çok küçük! En az {MIN_COLS}x{MIN_LINES} olmalıdır.\n"))
-            sys.exit(1)
+@contextmanager
+def cbreak_mode() -> Iterator[None]:
+    fd = old = None
+    try:
+        fd = sys.stdin.fileno()
+        old = termios.tcgetattr(fd)
+        tty.setcbreak(fd)
+    except (OSError, termios.error):
+        pass
+    try:
+        yield
+    finally:
+        if fd is not None and old is not None:
+            termios.tcsetattr(fd, termios.TCSAFLUSH, old)
 
-    @staticmethod
-    def read_filtered() -> int:
-        buf = ""
-        while True:
-            c = getchar()
-            if c == "\n" and buf:
-                Terminal.flush("\n")
-                return int(buf)
-            if c == BACKSPACE and buf:
-                buf = buf[:-1]
-                Terminal.flush("\b \b")  # move left, overwrite with space, move left
-            elif c.isdigit():
-                buf += c
-                Terminal.flush(c)
+
+def check_size() -> None:
+    term = shutil.get_terminal_size()
+    if term.columns < MIN_COLS or term.lines < MIN_LINES:
+        flush(set_color(RED, f"Terminal boyutu çok küçük! En az {MIN_COLS}x{MIN_LINES} olmalıdır.\n"))
+        sys.exit(1)

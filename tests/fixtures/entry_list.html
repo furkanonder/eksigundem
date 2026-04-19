@@ -1,44 +1,51 @@
 <html>
 <body>
-    <ul id="entry-item-list">
-        <li data-id="123" data-author="author1" data-author-id="100">
-            <div class="content">Test entry content</div>
-            <footer>
-                <div class="info">
-                    <div class="entry-footer-bottom">
-                        <div class="footer-info">
-                            <div id="entry-nick-container">
-                                <div id="entry-author">
-                                    <a class="entry-author" href="/biri/author1">author1</a>
+    <div id="topic">
+        <div class="pager" data-currentpage="1" data-pagecount="5"></div>
+        <ul id="entry-item-list">
+            <li data-id="123" data-author="author1" data-author-id="100">
+                <div class="content">Test entry content</div>
+                <footer>
+                    <div class="info">
+                        <div class="entry-footer-bottom">
+                            <div class="footer-info">
+                                <div id="entry-nick-container">
+                                    <div id="entry-author">
+                                        <a class="entry-author" href="/biri/author1">author1</a>
+                                    </div>
                                 </div>
-                            </div>
-                            <div>
-                                <a class="entry-date permalink" href="/entry/123">01.01.2026 10:00</a>
+                                <div>
+                                    <a class="entry-date permalink" href="/entry/123">01.01.2026 10:00</a>
+                                </div>
                             </div>
                         </div>
                     </div>
+                </footer>
+            </li>
+            <li data-id="456" data-author="author2" data-author-id="200">
+                <div class="content">
+                    Another entry with <a class="b" href="/?q=link">link</a>
+                    and <a class="url" rel="nofollow noopener" target="_blank"
+                    href="https://example.com/test">https://example.com/test</a>
                 </div>
-            </footer>
-        </li>
-        <li data-id="456" data-author="author2" data-author-id="200">
-            <div class="content">Another entry with <a class="b" href="/?q=link">link</a></div>
-            <footer>
-                <div class="info">
-                    <div class="entry-footer-bottom">
-                        <div class="footer-info">
-                            <div id="entry-nick-container">
-                                <div id="entry-author">
-                                    <a class="entry-author" href="/biri/author2">author2</a>
+                <footer>
+                    <div class="info">
+                        <div class="entry-footer-bottom">
+                            <div class="footer-info">
+                                <div id="entry-nick-container">
+                                    <div id="entry-author">
+                                        <a class="entry-author" href="/biri/author2">author2</a>
+                                    </div>
                                 </div>
-                            </div>
-                            <div>
-                                <a class="entry-date permalink" href="/entry/456">02.01.2026 12:30</a>
+                                <div>
+                                    <a class="entry-date permalink" href="/entry/456">02.01.2026 12:30</a>
+                                </div>
                             </div>
                         </div>
                     </div>
-                </div>
-            </footer>
-        </li>
-    </ul>
+                </footer>
+            </li>
+        </ul>
+    </div>
 </body>
 </html>
