@@ -12,6 +12,8 @@ from eksi.color import RED, set_color
 MIN_COLS: Final = 80
 MIN_LINES: Final = 20
 
+SIZE_ERROR: Final = set_color(RED, f"Terminal boyutu çok küçük! En az {MIN_COLS}x{MIN_LINES} olmalıdır.\n")
+
 # ANSI escape sequences
 SHOW_CURSOR: Final = "\033[?25h"
 HIDE_CURSOR: Final = "\033[?25l"
@@ -50,5 +52,5 @@ def cbreak_mode() -> Iterator[None]:
 def check_size() -> None:
     term = shutil.get_terminal_size()
     if term.columns < MIN_COLS or term.lines < MIN_LINES:
-        flush(set_color(RED, f"Terminal boyutu çok küçük! En az {MIN_COLS}x{MIN_LINES} olmalıdır.\n"))
+        flush(SIZE_ERROR)
         sys.exit(1)

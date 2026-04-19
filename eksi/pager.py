@@ -8,6 +8,8 @@ from eksi.color import BLUE, CYAN, GREEN, MAGENTA, RED, WHITE, YELLOW, set_color
 VALID_KEYS: Final = {"i", "o", "s", "e", "g"}
 
 QUIT_LABEL: Final = set_color(RED, "ctrl + (C)ıkış")
+SCROLL_HINT: Final = set_color(CYAN, "-- Devamını oku --\n")
+LOADING_LABEL: Final = set_color(CYAN, "Yükleniyor...")
 PAGER_NAV_LEFT: Final = (
     f"{set_color(YELLOW, '◂◂')} {set_color(YELLOW, '(i)lk')}  {set_color(YELLOW, '◂')} {set_color(YELLOW, '(o)nceki')}"
 )
@@ -33,7 +35,7 @@ def _format_entries(entries: Iterable[tuple[str, str, str]]) -> list[str]:
 
 
 def _loading_msg(title: str) -> str:
-    return f"{terminal.CLEAR_SCREEN}{set_color(GREEN, title)}\n{set_color(CYAN, 'Yükleniyor...')}\n"
+    return f"{terminal.CLEAR_SCREEN}{set_color(GREEN, title)}\n{LOADING_LABEL}\n"
 
 
 def _prompt_more_data(title: str, href: str, count: int) -> tuple[Iterator[tuple[str, str, str]], int, int] | None:
@@ -109,7 +111,7 @@ class Pager(ScrollView):
         if self.warning:
             footer = f"\n{set_color(RED, self.warning)}\n"
         elif self.scroll_pos < self.max_scroll:
-            footer = set_color(CYAN, "-- Devamını oku --\n")
+            footer = SCROLL_HINT
         else:
             footer = "\n"
 
@@ -178,7 +180,7 @@ class TopicSelector(ScrollView):
         return lines
 
     def _render(self) -> None:
-        footer = set_color(CYAN, "-- Devamını oku --\n") if self.scroll_pos < self.max_scroll else "\n"
+        footer = SCROLL_HINT if self.scroll_pos < self.max_scroll else "\n"
         visible = "\n".join(self.lines[self.scroll_pos : self.scroll_pos + self.page_size])
         prompt = f"{QUIT_LABEL} | {self.status}\n{terminal.SHOW_CURSOR}>>> {self.buf}"
         terminal.flush(f"{terminal.CLEAR_SCREEN}{visible}\n{footer}{prompt}")
