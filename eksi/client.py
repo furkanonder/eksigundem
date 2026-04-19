@@ -1,5 +1,6 @@
 from collections.abc import Iterator
 import gzip
+from itertools import islice
 from textwrap import fill
 from typing import Final
 from urllib.error import HTTPError, URLError
@@ -18,6 +19,7 @@ ENTRY_AUTHOR: Final = "a.entry-author"
 ENTRY_DATE: Final = "a.entry-date"
 PAGER_DIV: Final = "div.pager"
 TOPIC_LIST: Final = "ul.topic-list.partial li a"
+TOPIC_CONTINUE_LINK: Final = ".quick-index-continue-link-container a"
 
 # HTTP Headers (mimic Firefox to avoid being blocked)
 HEADERS: Final = {
@@ -113,5 +115,14 @@ def get_topic_page(topic_path: str, page: int = 0) -> tuple[Iterator[tuple[str, 
 
 
 def get_topics(count: int) -> list[tuple[str, str]]:
-    soup = get_soup(BASE_URL)
-    return [(a.text.strip(), a["href"]) for a in soup.select(TOPIC_LIST)][:count]
+    def _iter_topics() -> Iterator[tuple[str, str]]:
+        page = 1
+        while True:
+            soup = get_soup(f"{BASE_URL}/basliklar/gundem?p={page}")
+            for a in soup.select(TOPIC_LIST):
+                yield a.text.strip(), a["href"]
+            if not soup.select_one(TOPIC_CONTINUE_LINK):
+                return
+            page += 1
+
+    return list(islice(_iter_topics(), count))

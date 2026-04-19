@@ -110,6 +110,36 @@ class TestClient(unittest.TestCase):
             assert len(topics) == 3
             assert topics[0] == ("Topic 1 5", "/topic1--123?a=popular")
 
+    def test_get_topics_paginates(self):
+        """Should fetch multiple pages when count exceeds a single page."""
+        page1 = Soup(load_fixture("topic_list_page1.html"), "html.parser")
+        page2 = Soup(load_fixture("topic_list_page2.html"), "html.parser")
+
+        with patch.object(client, "get_soup", side_effect=[page1, page2]) as mock_soup:
+            topics = client.get_topics(5)
+            assert len(topics) == 5
+            assert topics[0] == ("Topic 1 10", "/topic1--1?a=popular")
+            assert topics[4] == ("Topic 5 50", "/topic5--5?a=popular")
+            assert mock_soup.call_count == 2
+
+    def test_get_topics_stops_at_requested_count(self):
+        """Should stop paginating once count is reached even if more pages exist."""
+        page1 = Soup(load_fixture("topic_list_page1.html"), "html.parser")
+
+        with patch.object(client, "get_soup", return_value=page1) as mock_soup:
+            topics = client.get_topics(2)
+            assert len(topics) == 2
+            assert mock_soup.call_count == 1
+
+    def test_get_topics_returns_less_when_site_has_fewer(self):
+        """Should return all available topics when site has fewer than requested."""
+        html = load_fixture("topic_list.html")
+        real_soup = Soup(html, "html.parser")
+
+        with patch.object(client, "get_soup", return_value=real_soup):
+            topics = client.get_topics(100)
+            assert len(topics) == 3
+
     def test_preserves_query_on_initial_load(self):
         """Default page (0) should use the original URL (preserving ?a=popular)."""
         html = load_fixture("entry_list.html")

@@ -7,16 +7,22 @@ from eksi.color import RED, set_color
 from eksi.eksi import Eksi
 
 
+def _positive_int(value: str) -> int:
+    n = int(value)
+    if n < 1:
+        raise argparse.ArgumentTypeError("Lütfen pozitif bir tamsayı girin.")
+    return n
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Komut satırında Ekşi Sözlük!")
     parser.add_argument("-v", "--versiyon", action="version", version=__version__)
     parser.add_argument(
         "-b",
         "--baslik_sayisi",
-        type=int,
-        default=50,
-        choices=range(1, 51),
-        help="Gösterilecek başlık sayısı",
+        type=_positive_int,
+        default=10,
+        help="Gösterilecek başlık sayısı (varsayılan: 10)",
     )
 
     try:

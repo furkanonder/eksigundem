@@ -34,7 +34,7 @@ eksi
 
 | Parametre               | Açıklama                                          |
 |-------------------------|---------------------------------------------------|
-| `-b`, `--baslik_sayisi` | Gösterilecek başlık sayısı (1-50, varsayılan: 50) |
+| `-b`, `--baslik_sayisi` | Gösterilecek başlık sayısı (varsayılan: 10)       |
 | `-v`, `--versiyon`      | Sürüm bilgisini gösterir                          |
 
 
