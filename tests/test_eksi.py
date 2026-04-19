@@ -150,16 +150,26 @@ class TestClient(unittest.TestCase):
             fetched_url = mock_soup.call_args[0][0]
             assert "?a=popular" in fetched_url
 
-    def test_strips_query_on_explicit_page(self):
-        """Explicit page number should strip query params and use ?p=N."""
+    def test_preserves_query_on_explicit_page(self):
+        """Explicit page number should preserve ?a=popular and append &p=N."""
         html = load_fixture("entry_list.html")
         real_soup = Soup(html, "html.parser")
 
         with patch.object(client, "get_soup", return_value=real_soup) as mock_soup:
-            client.get_topic_page("/topic--123?a=popular", page=1)
+            client.get_topic_page("/topic--123?a=popular", page=2)
             fetched_url = mock_soup.call_args[0][0]
-            assert "?a=popular" not in fetched_url
-            assert "?p=1" in fetched_url
+            assert "a=popular" in fetched_url
+            assert "p=2" in fetched_url
+
+    def test_pagination_without_query(self):
+        """Topic path without a query should use ?p=N."""
+        html = load_fixture("entry_list.html")
+        real_soup = Soup(html, "html.parser")
+
+        with patch.object(client, "get_soup", return_value=real_soup) as mock_soup:
+            client.get_topic_page("/topic--123", page=2)
+            fetched_url = mock_soup.call_args[0][0]
+            assert "?p=2" in fetched_url
 
     def test_detects_more_data_link(self):
         """When a 'more-data' link precedes the entry list, return the count and href."""
@@ -265,7 +275,7 @@ class TestPager(unittest.TestCase):
         real_soup = Soup(html, "html.parser")
 
         with patch.object(client, "get_soup", return_value=real_soup):
-            lines, current_page, page_count = pager_mod._load_entries("Test Topic", "test-topic")
+            lines, current_page, page_count, _ = pager_mod._load_entries("Test Topic", "test-topic")
             assert isinstance(lines, list)
             assert len(lines) > 0
             assert current_page == 1
@@ -280,7 +290,7 @@ class TestPager(unittest.TestCase):
     def test_get_page_first_page_warning(self, _mock_stdout):
         """Page num 0 clamps to 1 and sets a warning."""
         with (
-            patch.object(pager_mod, "_load_entries", return_value=(["line"], 1, 10)) as mock_load,
+            patch.object(pager_mod, "_load_entries", return_value=(["line"], 1, 10, "/url")) as mock_load,
             patch.object(Pager, "run", return_value="g"),
         ):
             cmd, page_num, page_count = Pager._get_page("title", "/url", 0, 10)
@@ -292,7 +302,7 @@ class TestPager(unittest.TestCase):
     def test_get_page_last_page_warning(self, _mock_stdout):
         """Past last page clamps to page_count and sets warning."""
         with (
-            patch.object(pager_mod, "_load_entries", return_value=(["line"], 4, 4)) as mock_load,
+            patch.object(pager_mod, "_load_entries", return_value=(["line"], 4, 4, "/url")) as mock_load,
             patch.object(Pager, "run", return_value="g"),
         ):
             cmd, page_num, page_count = Pager._get_page("title", "/url", 5, 4)
@@ -309,26 +319,30 @@ class TestPager(unittest.TestCase):
             ([("visible", "a1", "d1")], "/t--1?focusto=100", 5, 1, 10),
             ([("more", "a2", "d2")], "", 0, 3, 30),
         ]
-        _lines, current_page, page_count = pager_mod._load_entries("T", "/t--1?a=popular")
+        _lines, current_page, page_count, url = pager_mod._load_entries("T", "/t--1?a=popular")
         assert mock_page.call_count == 2
         mock_page.assert_any_call("/t--1?a=popular", 0)
         mock_page.assert_any_call("/t--1?focusto=100")
         assert current_page == 3
         assert page_count == 30
+        # After accepting more-data, url should be stripped of ?a=popular
+        assert url == "/t--1"
 
     @patch("eksi.pager.terminal.getchar", return_value="h")
     @patch("eksi.pager.client.get_topic_page", return_value=([("visible", "a1", "d1")], "/t?focusto=1", 5, 1, 10))
     def test_load_entries_more_data_no(self, mock_page, _mock_getchar, _mock_stdout):
         """When more-data entries exist and the user presses 'h', keep visible entries."""
-        _lines, current_page, page_count = pager_mod._load_entries("T", "/t?a=popular")
+        _lines, current_page, page_count, url = pager_mod._load_entries("T", "/t?a=popular")
         assert mock_page.call_count == 1
         assert current_page == 1
         assert page_count == 10
+        # User declined, url kept as-is so popular-view pagination continues
+        assert url == "/t?a=popular"
 
     def test_enter_topic_first_page(self, _mock_stdout):
         """Pressing 'i' should navigate to page 1."""
         with (
-            patch.object(pager_mod, "_load_entries", return_value=(["line"], 5, 10)) as mock_load,
+            patch.object(pager_mod, "_load_entries", return_value=(["line"], 5, 10, "/url")) as mock_load,
             patch.object(Pager, "run", side_effect=["i", "g"]),
         ):
             Pager.enter_topic("title", "/url")
@@ -338,7 +352,7 @@ class TestPager(unittest.TestCase):
     def test_enter_topic_last_page(self, _mock_stdout):
         """Pressing 'e' should navigate to the last page."""
         with (
-            patch.object(pager_mod, "_load_entries", return_value=(["line"], 5, 10)) as mock_load,
+            patch.object(pager_mod, "_load_entries", return_value=(["line"], 5, 10, "/url")) as mock_load,
             patch.object(Pager, "run", side_effect=["e", "g"]),
         ):
             Pager.enter_topic("title", "/url")
@@ -350,7 +364,7 @@ class TestPager(unittest.TestCase):
     def test_more_data_prompt_only_on_initial_load(self, mock_page, _mock_getchar, _mock_stdout):
         """More-data prompt should only appear on an initial load (page_num=0), not on pagination."""
         # page_num=2 simulates pagination — should NOT prompt even though more_data_count > 0
-        _lines, current_page, _page_count = pager_mod._load_entries("T", "/t?a=popular", page_num=2)
+        _lines, current_page, _page_count, _url = pager_mod._load_entries("T", "/t?a=popular", page_num=2)
         assert mock_page.call_count == 1
         assert current_page == 1
 

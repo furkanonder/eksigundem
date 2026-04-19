@@ -47,14 +47,16 @@ def _prompt_more_data(title: str, href: str, count: int) -> tuple[Iterator[tuple
     return visible, current_page, page_count
 
 
-def _load_entries(title: str, url: str, page_num: int = 0) -> tuple[list[str], int, int]:
+def _load_entries(title: str, url: str, page_num: int = 0) -> tuple[list[str], int, int, str]:
     terminal.flush(_loading_msg(title))
     visible, more_data_href, more_data_count, current_page, page_count = client.get_topic_page(url, page_num)
 
     if more_data_count > 0 and page_num == 0 and (result := _prompt_more_data(title, more_data_href, more_data_count)):
         visible, current_page, page_count = result
+        # Strip ?a=popular so subsequent pagination uses the chronological view.
+        url = url.split("?", maxsplit=1)[0]
 
-    return _format_entries(visible), current_page, page_count
+    return _format_entries(visible), current_page, page_count, url
 
 
 class ScrollView:
@@ -137,13 +139,13 @@ class Pager(ScrollView):
     @classmethod
     def _get_page(cls, title: str, url: str, page_num: int, page_count: int) -> tuple[str, int, int]:
         page_num, warning = cls._clamp_page(page_num, page_count)
-        lines, current_page, page_count = _load_entries(title, url, page_num)
+        lines, current_page, page_count, _ = _load_entries(title, url, page_num)
         cmd = cls(lines, title, warning, current_page, page_count).run()
         return cmd, current_page, page_count
 
     @classmethod
     def enter_topic(cls, title: str, url: str) -> None:
-        lines, current_page, page_count = _load_entries(title, url)
+        lines, current_page, page_count, url = _load_entries(title, url)
         cmd = cls(lines, title, page_num=current_page, page_count=page_count).run()
 
         page_num = current_page

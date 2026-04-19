@@ -99,11 +99,13 @@ def _get_pager_info(soup: Soup) -> tuple[int, int]:
 
 
 def _build_topic_url(topic_path: str, page: int) -> str:
-    """Preserve the original query on an initial load (page=0), strip it for explicit pagination."""
-    if page == 0:
+    # Preserve the existing query (e.g. ?a=popular) and append &p=N only for pages 2+, since eksisozluk drops the
+    # ?a=popular filter when &p=1 is present - keeping page 1 bare ensures the 'i' (first page) key returns to the
+    # initial view instead of falling back to the chronological first page.
+    if page <= 1:
         return f"{BASE_URL}{topic_path}"
-    base_path = topic_path.split("?", maxsplit=1)[0]
-    return f"{BASE_URL}{base_path}?p={page}"
+    separator = "&" if "?" in topic_path else "?"
+    return f"{BASE_URL}{topic_path}{separator}p={page}"
 
 
 def get_topic_page(topic_path: str, page: int = 0) -> tuple[Iterator[tuple[str, str, str]], str, int, int, int]:
