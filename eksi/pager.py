@@ -3,20 +3,16 @@ import shutil
 from typing import Final
 
 from eksi import client, terminal
-from eksi.color import BLUE, CYAN, GREEN, MAGENTA, RED, WHITE, YELLOW, set_color
+from eksi.color import CYAN, GREEN, MAGENTA, RED, WHITE, YELLOW, set_color
 
 VALID_KEYS: Final = {"i", "o", "s", "e", "g"}
 
 QUIT_LABEL: Final = set_color(RED, "ctrl + (C)ıkış")
 SCROLL_HINT: Final = set_color(CYAN, "-- Devamını oku --\n")
 LOADING_LABEL: Final = set_color(CYAN, "Yükleniyor...")
-PAGER_NAV_LEFT: Final = (
-    f"{set_color(YELLOW, '◂◂')} {set_color(YELLOW, '(i)lk')}  {set_color(YELLOW, '◂')} {set_color(YELLOW, '(o)nceki')}"
-)
-PAGER_NAV_RIGHT: Final = (
-    f"{set_color(WHITE, '(s)onraki')} {set_color(WHITE, '▸')} {set_color(WHITE, '(e)n son')} {set_color(WHITE, '▸▸')}"
-)
-PAGER_EXIT: Final = f"{set_color(BLUE, '(g)ündem')} {QUIT_LABEL}"
+PAGER_NAV_LEFT: Final = f"{set_color(WHITE, '◂◂ (i)lk ◂ (o)nceki')}"
+PAGER_NAV_RIGHT: Final = f"{set_color(WHITE, '(s)onraki ▸ (e)n son ▸▸')}"
+PAGER_EXIT: Final = f"{set_color(MAGENTA, '(g)ündem')} {QUIT_LABEL}"
 MORE_DATA_PROMPT: Final = f"{set_color(WHITE, '(e)vet')} {set_color(YELLOW, '(h)ayır')}"
 
 
