@@ -1,7 +1,6 @@
 from collections.abc import Iterator
 import gzip
 from itertools import islice
-from textwrap import fill
 from typing import Final
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
@@ -69,7 +68,7 @@ def _clean_content(content: Tag) -> str:
         a.string = f" {a['href']} "
     for tag in content.select("*"):
         tag.unwrap()
-    return fill(content.text, width=80, break_long_words=False, break_on_hyphens=False).strip()
+    return str(content.text).strip()
 
 
 def _parse_entry(entry: Tag) -> Iterator[tuple[str, str, str]]:

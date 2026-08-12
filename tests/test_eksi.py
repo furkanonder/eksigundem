@@ -7,9 +7,10 @@ from urllib.error import HTTPError, URLError
 
 from bs4 import BeautifulSoup as Soup
 
-from eksi import client
+from eksi import client, terminal
 from eksi import pager as pager_mod
 from eksi.client import EksiError
+from eksi.color import GREEN, RED
 from eksi.eksi import Eksi
 from eksi.pager import Pager, TopicSelector
 
@@ -18,6 +19,59 @@ FIXTURES_DIR = Path(__file__).parent / "fixtures"
 
 def load_fixture(name: str) -> str:
     return (FIXTURES_DIR / name).read_text()
+
+
+class TestTerminal(unittest.TestCase):
+    @patch("shutil.get_terminal_size", return_value=os.terminal_size((40, 10)))
+    def test_is_too_small_when_below_min(self, _mock_size):
+        """Should detect when both dimensions are below the minimum."""
+        assert terminal.is_too_small() is True
+
+    @patch("shutil.get_terminal_size", return_value=os.terminal_size((59, 30)))
+    def test_is_too_small_when_only_width_below(self, _mock_size):
+        """Should return True when only width is below the minimum."""
+        assert terminal.is_too_small() is True
+
+    @patch("shutil.get_terminal_size", return_value=os.terminal_size((100, 17)))
+    def test_is_too_small_when_only_height_below(self, _mock_size):
+        """Should return True when only height is below the minimum."""
+        assert terminal.is_too_small() is True
+
+    @patch("shutil.get_terminal_size", return_value=os.terminal_size((80, 24)))
+    def test_is_too_small_when_at_or_above_min(self, _mock_size):
+        """Should return False when both dimensions meet the minimum."""
+        assert terminal.is_too_small() is False
+
+    @patch("shutil.get_terminal_size", return_value=os.terminal_size((40, 10)))
+    def test_too_small_msg_contains_current_and_required_dimensions(self, _mock_size):
+        """Message should contain both current dimensions and required minimums."""
+        msg = terminal.too_small_msg()
+        assert "Terminal boyutu çok küçük:" in msg
+        assert "Gerekli boyut:" in msg
+        # Current dimensions appear
+        assert "40" in msg
+        assert "10" in msg
+        # Required minimums appear
+        assert str(terminal.MIN_COLS) in msg
+        assert str(terminal.MIN_LINES) in msg
+
+    @patch("shutil.get_terminal_size", return_value=os.terminal_size((40, 10)))
+    def test_too_small_msg_colors_below_min_red(self, _mock_size):
+        """Both dimensions below min should be wrapped in RED ANSI codes."""
+        msg = terminal.too_small_msg()
+        # 40 (cols) and 10 (rows) are both below min - both red
+        assert f"{RED}40" in msg
+        assert f"{RED}10" in msg
+        # Neither should be green
+        assert f"{GREEN}40" not in msg
+        assert f"{GREEN}10" not in msg
+
+    @patch("shutil.get_terminal_size", return_value=os.terminal_size((100, 10)))
+    def test_too_small_msg_colors_per_dimension(self, _mock_size):
+        """Width above min should be GREEN; height below min should be RED."""
+        msg = terminal.too_small_msg()
+        assert f"{GREEN}100" in msg  # cols >= MIN_COLS
+        assert f"{RED}10" in msg  # rows < MIN_LINES
 
 
 class TestClient(unittest.TestCase):
@@ -225,8 +279,13 @@ class TestClient(unittest.TestCase):
 
     def test_parse_entry_empty_content(self):
         """Should skip entries with whitespace-only content."""
-        html = """<li data-id="1"><div class="content">   </div>
-            <a class="entry-author">a</a><a class="entry-date">d</a></li>"""
+        html = """
+            <li data-id="1">
+                <div class="content"></div>
+                <a class="entry-author">author</a>
+                <a class="entry-date">date</a>
+            </li>
+        """
         entry = Soup(html, "html.parser").select_one("li")
         assert list(client._parse_entry(entry)) == []
 
@@ -247,15 +306,24 @@ class TestPager(unittest.TestCase):
     @patch("eksi.pager.terminal.getchar", return_value="g")
     def test_short_content(self, mock_getchar, _mock_size, _mock_stdout):
         """Short content still enters the pager, any key exits."""
-        pager = Pager(lines=[f"line {i}" for i in range(10)])
+        pager = Pager(entries=[(f"line {i}", "author", "date") for i in range(10)])
         pager.run()
         mock_getchar.assert_called_once()
+
+    @patch("shutil.get_terminal_size", return_value=os.terminal_size((40, 10)))
+    @patch("eksi.pager.terminal.flush")
+    def test_renders_warning_when_too_small(self, mock_flush, _mock_size, _mock_stdout):
+        """Pager._render should emit the too-small warning instead of normal content."""
+        pager = Pager(entries=[("text", "author", "date")])
+        pager._render()
+        flushed = "".join(call.args[0] for call in mock_flush.call_args_list)
+        assert "Terminal boyutu çok küçük:" in flushed
 
     @patch("shutil.get_terminal_size", return_value=os.terminal_size((80, 6)))
     @patch("eksi.pager.terminal.getchar", side_effect=[" ", " ", "g"])
     def test_with_pause(self, mock_getchar, _mock_size, _mock_stdout):
         """Content exceeds terminal - Space scrolls, non-scroll key exits."""
-        pager = Pager(lines=[f"line {i}" for i in range(12)])
+        pager = Pager(entries=[(f"line {i}", "author", "date") for i in range(12)])
         result = pager.run()
         assert mock_getchar.call_count == 3
         assert result == "g"
@@ -264,7 +332,7 @@ class TestPager(unittest.TestCase):
     @patch("eksi.pager.terminal.getchar", side_effect=[" ", "s"])
     def test_returns_exit_key(self, mock_getchar, _mock_size, _mock_stdout):
         """Pager returns the key that caused exit."""
-        pager = Pager(lines=[f"line {i}" for i in range(12)])
+        pager = Pager(entries=[(f"line {i}", "author", "date") for i in range(12)])
         result = pager.run()
         assert mock_getchar.call_count == 2
         assert result == "s"
@@ -290,7 +358,11 @@ class TestPager(unittest.TestCase):
     def test_get_page_first_page_warning(self, _mock_stdout):
         """Page num 0 clamps to 1 and sets a warning."""
         with (
-            patch.object(pager_mod, "_load_entries", return_value=(["line"], 1, 10, "/url")) as mock_load,
+            patch.object(
+                pager_mod,
+                "_load_entries",
+                return_value=([("line", "author", "date")], 1, 10, "/url"),
+            ) as mock_load,
             patch.object(Pager, "run", return_value="g"),
         ):
             cmd, page_num, page_count = Pager._get_page("title", "/url", 0, 10)
@@ -302,7 +374,11 @@ class TestPager(unittest.TestCase):
     def test_get_page_last_page_warning(self, _mock_stdout):
         """Past last page clamps to page_count and sets warning."""
         with (
-            patch.object(pager_mod, "_load_entries", return_value=(["line"], 4, 4, "/url")) as mock_load,
+            patch.object(
+                pager_mod,
+                "_load_entries",
+                return_value=([("line", "author", "date")], 4, 4, "/url"),
+            ) as mock_load,
             patch.object(Pager, "run", return_value="g"),
         ):
             cmd, page_num, page_count = Pager._get_page("title", "/url", 5, 4)
@@ -316,8 +392,8 @@ class TestPager(unittest.TestCase):
     def test_load_entries_more_data_yes(self, mock_page, _mock_getchar, _mock_stdout):
         """When more-data entries exist and the user presses 'e', reload from focusto URL."""
         mock_page.side_effect = [
-            ([("visible", "a1", "d1")], "/t--1?focusto=100", 5, 1, 10),
-            ([("more", "a2", "d2")], "", 0, 3, 30),
+            ([("visible", "author1", "date1")], "/t--1?focusto=100", 5, 1, 10),
+            ([("more", "author2", "date2")], "", 0, 3, 30),
         ]
         _lines, current_page, page_count, url = pager_mod._load_entries("T", "/t--1?a=popular")
         assert mock_page.call_count == 2
@@ -329,7 +405,10 @@ class TestPager(unittest.TestCase):
         assert url == "/t--1"
 
     @patch("eksi.pager.terminal.getchar", return_value="h")
-    @patch("eksi.pager.client.get_topic_page", return_value=([("visible", "a1", "d1")], "/t?focusto=1", 5, 1, 10))
+    @patch(
+        "eksi.pager.client.get_topic_page",
+        return_value=([("visible", "author1", "date1")], "/t?focusto=1", 5, 1, 10),
+    )
     def test_load_entries_more_data_no(self, mock_page, _mock_getchar, _mock_stdout):
         """When more-data entries exist and the user presses 'h', keep visible entries."""
         _lines, current_page, page_count, url = pager_mod._load_entries("T", "/t?a=popular")
@@ -342,7 +421,11 @@ class TestPager(unittest.TestCase):
     def test_enter_topic_first_page(self, _mock_stdout):
         """Pressing 'i' should navigate to page 1."""
         with (
-            patch.object(pager_mod, "_load_entries", return_value=(["line"], 5, 10, "/url")) as mock_load,
+            patch.object(
+                pager_mod,
+                "_load_entries",
+                return_value=([("line", "author", "date")], 5, 10, "/url"),
+            ) as mock_load,
             patch.object(Pager, "run", side_effect=["i", "g"]),
         ):
             Pager.enter_topic("title", "/url")
@@ -352,7 +435,11 @@ class TestPager(unittest.TestCase):
     def test_enter_topic_last_page(self, _mock_stdout):
         """Pressing 'e' should navigate to the last page."""
         with (
-            patch.object(pager_mod, "_load_entries", return_value=(["line"], 5, 10, "/url")) as mock_load,
+            patch.object(
+                pager_mod,
+                "_load_entries",
+                return_value=([("line", "author", "date")], 5, 10, "/url"),
+            ) as mock_load,
             patch.object(Pager, "run", side_effect=["e", "g"]),
         ):
             Pager.enter_topic("title", "/url")
@@ -360,7 +447,10 @@ class TestPager(unittest.TestCase):
             mock_load.assert_any_call("title", "/url", 10)
 
     @patch("eksi.pager.terminal.getchar", return_value="h")
-    @patch("eksi.pager.client.get_topic_page", return_value=([("v", "a", "d")], "/t?focusto=1", 5, 1, 10))
+    @patch(
+        "eksi.pager.client.get_topic_page",
+        return_value=([("visible", "author", "date")], "/t?focusto=1", 5, 1, 10),
+    )
     def test_more_data_prompt_only_on_initial_load(self, mock_page, _mock_getchar, _mock_stdout):
         """More-data prompt should only appear on an initial load (page_num=0), not on pagination."""
         # page_num=2 simulates pagination — should NOT prompt even though more_data_count > 0
@@ -371,7 +461,7 @@ class TestPager(unittest.TestCase):
     @patch("shutil.get_terminal_size", return_value=os.terminal_size((80, 10)))
     def test_scroll_arrow_up(self, _mock_size, _mock_stdout):
         """Arrow up should scroll up by one line."""
-        pager = Pager(lines=[f"line {i}" for i in range(20)])
+        pager = Pager(entries=[(f"line {i}", "author", "date") for i in range(20)])
         pager.scroll_pos = 5
         with patch("eksi.pager.terminal.getchar", side_effect=["[", "A"]):
             pager._compute_scroll("\x1b")
@@ -380,7 +470,7 @@ class TestPager(unittest.TestCase):
     @patch("shutil.get_terminal_size", return_value=os.terminal_size((80, 10)))
     def test_scroll_home_end(self, _mock_size, _mock_stdout):
         """Home should go to start, End to max scroll."""
-        pager = Pager(lines=[f"line {i}" for i in range(30)])
+        pager = Pager(entries=[(f"line {i}", "author", "date") for i in range(30)])
         pager.scroll_pos = 10
         with patch("eksi.pager.terminal.getchar", side_effect=["[", "H"]):
             pager._compute_scroll("\x1b")
@@ -392,7 +482,7 @@ class TestPager(unittest.TestCase):
     @patch("shutil.get_terminal_size", return_value=os.terminal_size((80, 10)))
     def test_scroll_pgup_pgdn(self, _mock_size, _mock_stdout):
         """PgUp/PgDn should scroll by page_size."""
-        pager = Pager(lines=[f"line {i}" for i in range(50)])
+        pager = Pager(entries=[(f"line {i}", "author", "date") for i in range(50)])
         with patch("eksi.pager.terminal.getchar", side_effect=["[", "6", "~"]):
             pager._compute_scroll("\x1b")
         assert pager.scroll_pos == pager.page_size
@@ -404,6 +494,16 @@ class TestPager(unittest.TestCase):
 @patch("sys.stdout")
 class TestTopicSelector(unittest.TestCase):
     TOPICS = [("Topic 5", "/topic")] * 5
+
+    @patch("shutil.get_terminal_size", return_value=os.terminal_size((40, 10)))
+    @patch("eksi.pager.terminal.flush")
+    def test_renders_warning_when_too_small(self, mock_flush, _mock_size, _mock_stdout):
+        """TopicSelector._render should emit the too-small warning instead of normal content."""
+        with patch("shutil.get_terminal_size", return_value=os.terminal_size((80, 50))):
+            selector = TopicSelector(self.TOPICS)
+        selector._render()
+        flushed = "".join(call.args[0] for call in mock_flush.call_args_list)
+        assert "Terminal boyutu çok küçük:" in flushed
 
     @patch("shutil.get_terminal_size", return_value=os.terminal_size((80, 50)))
     @patch("eksi.pager.terminal.getchar", side_effect=["1", "\x7f", "2", "\n"])

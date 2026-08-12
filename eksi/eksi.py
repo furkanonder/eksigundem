@@ -24,7 +24,6 @@ class Eksi:
                 self._fetch_topics()
 
     def main(self) -> None:
-        terminal.check_size()
         terminal.flush(terminal.ALT_SCREEN_ON)
         try:
             self._fetch_topics()

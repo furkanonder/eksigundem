@@ -6,13 +6,11 @@ import termios
 import tty
 from typing import Final
 
-from eksi.color import RED, set_color
+from eksi.color import GREEN, RED, set_color
 
 # Minimum terminal size for proper rendering
-MIN_COLS: Final = 80
-MIN_LINES: Final = 20
-
-SIZE_ERROR: Final = set_color(RED, f"Terminal boyutu çok küçük! En az {MIN_COLS}x{MIN_LINES} olmalıdır.\n")
+MIN_COLS: Final = 60
+MIN_LINES: Final = 18
 
 # ANSI escape sequences
 SHOW_CURSOR: Final = "\033[?25h"
@@ -49,8 +47,34 @@ def cbreak_mode() -> Iterator[None]:
             termios.tcsetattr(fd, termios.TCSAFLUSH, old)
 
 
-def check_size() -> None:
+def is_too_small() -> bool:
     term = shutil.get_terminal_size()
-    if term.columns < MIN_COLS or term.lines < MIN_LINES:
-        flush(SIZE_ERROR)
-        sys.exit(1)
+    return term.columns < MIN_COLS or term.lines < MIN_LINES
+
+
+def too_small_msg() -> str:
+    term = shutil.get_terminal_size()
+    cols, rows = term.columns, term.lines
+
+    cur_w = set_color(RED if cols < MIN_COLS else GREEN, str(cols))
+    cur_h = set_color(RED if rows < MIN_LINES else GREEN, str(rows))
+
+    current_colored = f"Genişlik = {cur_w} Yükseklik = {cur_h}"
+    current_visible_len = len(f"Genişlik = {cols} Yükseklik = {rows}")
+
+    def pad(visible_len: int) -> str:
+        return " " * max((cols - visible_len) // 2, 0)
+
+    top_padding = "\n" * max((rows - 5) // 2, 0)
+    label1 = "Terminal boyutu çok küçük:"
+    label2 = "Gerekli boyut:"
+    needed = f"Genişlik = {MIN_COLS} Yükseklik = {MIN_LINES}"
+
+    return (
+        f"{CLEAR_SCREEN}{top_padding}"
+        f"{pad(len(label1))}{label1}\n"
+        f"{pad(current_visible_len)}{current_colored}\n"
+        f"\n"
+        f"{pad(len(label2))}{label2}\n"
+        f"{pad(len(needed))}{needed}"
+    )
