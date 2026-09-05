@@ -1,6 +1,6 @@
 from typing import Final
 
-from eksi import client, terminal
+from eksi import client, session, terminal
 from eksi.color import CYAN, set_color
 from eksi.pager import Pager, TopicSelector
 
@@ -12,23 +12,25 @@ class Eksi:
         self.topics: list[tuple[str, str]] = []
         self.topic_count = topic_count
 
-    def _fetch_topics(self) -> None:
-        self.topics = client.get_topics(self.topic_count)
+    async def _fetch_topics(self) -> None:
+        self.topics = await client.get_topics(self.topic_count)
 
-    def prompt(self) -> None:
+    async def prompt(self) -> None:
         with terminal.cbreak_mode():
             while True:
                 title, url = TopicSelector(self.topics).run()
-                Pager.enter_topic(title, url)
+                await Pager.enter_topic(title, url)
                 terminal.flush(RETURNING_MSG)
-                self._fetch_topics()
+                await self._fetch_topics()
 
-    def main(self) -> None:
+    async def main(self) -> None:
         terminal.flush(terminal.ALT_SCREEN_ON)
+        session.open_session()
         try:
-            self._fetch_topics()
-            self.prompt()
+            await self._fetch_topics()
+            await self.prompt()
         except KeyboardInterrupt:
             pass
         finally:
+            await session.close_session()
             terminal.flush(terminal.ALT_SCREEN_OFF)

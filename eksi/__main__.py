@@ -1,4 +1,5 @@
 import argparse
+import asyncio
 import sys
 
 from eksi import __version__
@@ -28,7 +29,7 @@ def main() -> None:
     try:
         args = parser.parse_args()
         eksi = Eksi(topic_count=args.baslik_sayisi)
-        eksi.main()
+        asyncio.run(eksi.main())
     except EksiError as e:
         print(set_color(RED, f"Hata: {e}"))
         sys.exit(1)

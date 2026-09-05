@@ -1,12 +1,11 @@
 from collections.abc import Iterator
-import gzip
-from itertools import islice
-from typing import Final
-from urllib.error import HTTPError, URLError
-from urllib.request import Request, urlopen
+from typing import Final, cast
 
 from bs4 import BeautifulSoup as Soup
 from bs4 import Tag
+import httpx
+
+from eksi import session
 
 BASE_URL: Final = "https://eksisozluk.com"
 
@@ -20,46 +19,30 @@ PAGER_DIV: Final = "div.pager"
 TOPIC_LIST: Final = "ul.topic-list.partial li a"
 TOPIC_CONTINUE_LINK: Final = ".quick-index-continue-link-container a"
 
-# HTTP Headers (mimic Firefox to avoid being blocked)
-HEADERS: Final = {
-    "User-Agent": "Mozilla/5.0 (X11; Linux x86_64; rv:147.0) Gecko/20100101 Firefox/147.0",
-    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",  # Accept types
-    "Accept-Language": "tr-TR,tr;q=0.9",  # Turkish locale
-    "Accept-Encoding": "gzip",  # Enable compression
-    "Alt-Used": "eksisozluk.com",  # Firefox HTTP/2 coalescing header
-    "Connection": "keep-alive",  # Reuse TCP connection
-    "Upgrade-Insecure-Requests": "1",  # Prefer HTTPS
-    # Sec-Fetch headers: tell the server this is a trusted user-initiated request
-    "Sec-Fetch-Dest": "document",  # Fetching a web page
-    "Sec-Fetch-Mode": "navigate",  # Top-level navigation (not fetch/XHR)
-    "Sec-Fetch-Site": "none",  # Direct URL entry (not from another site)
-    "Sec-Fetch-User": "?1",  # Triggered by user action (click/keypress)
-}
+ERROR_MESSAGES: Final = {404: "Sayfa bulunamadı!", 403: "Erişim engellendi!"}
 
 
 class EksiError(Exception):
     pass
 
 
-def get_soup(url: str) -> Soup:
+async def get_soup(url: str) -> Soup:
     try:
-        request = Request(url, headers=HEADERS)
-        response = urlopen(request, timeout=10)
-        data = response.read()
-        if response.headers.get("Content-Encoding", "") == "gzip":
-            data = gzip.decompress(data)
-        return Soup(data.decode("utf-8"), "html.parser")
-    except HTTPError as e:
-        error_messages = {404: "Sayfa bulunamadı!", 403: "Erişim engellendi!"}
-        if e.code in error_messages:
-            raise EksiError(error_messages[e.code]) from e
-        if 500 <= e.code <= 511:
+        response = await session.get_client().get(url)
+        response.raise_for_status()
+    except httpx.HTTPStatusError as e:
+        code = e.response.status_code
+        if code in ERROR_MESSAGES:
+            raise EksiError(ERROR_MESSAGES[code]) from e
+        if 500 <= code <= 511:
             raise EksiError("Sunucu hatası! Lütfen daha sonra tekrar deneyin.") from e
-        raise EksiError(f"HTTP hatası: {e.code}") from e
-    except URLError as e:
-        if "name resolution" in str(e.reason).lower():
+        raise EksiError(f"HTTP hatası: {code}") from e
+    except httpx.TransportError as e:
+        reason = str(e).lower()
+        if "name resolution" in reason:
             raise EksiError("Internet bağlantısı yok! Lütfen bağlantınızı kontrol edin.") from e
-        raise EksiError(f"Bağlantı hatası: {e.reason}") from e
+        raise EksiError(f"Bağlantı hatası: {reason}") from e
+    return Soup(response.text, "html.parser")
 
 
 def _clean_content(content: Tag) -> str:
@@ -72,11 +55,11 @@ def _clean_content(content: Tag) -> str:
 
 
 def _parse_entry(entry: Tag) -> Iterator[tuple[str, str, str]]:
-    content = entry.select_one(ENTRY_CONTENT)
-    author = entry.select_one(ENTRY_AUTHOR).text.strip()
-    date_time = entry.select_one(ENTRY_DATE).text.strip()
+    content = cast("Tag", entry.select_one(ENTRY_CONTENT))
+    author_tag = cast("Tag", entry.select_one(ENTRY_AUTHOR))
+    date_tag = cast("Tag", entry.select_one(ENTRY_DATE))
     if text := _clean_content(content):
-        yield text, author, date_time
+        yield text, author_tag.text.strip(), date_tag.text.strip()
 
 
 def _yield_entries(entry_list: Tag) -> Iterator[tuple[str, str, str]]:
@@ -87,13 +70,13 @@ def _yield_entries(entry_list: Tag) -> Iterator[tuple[str, str, str]]:
 def _find_more_data(entry_list: Tag) -> tuple[str, int]:
     """Find the 'X entry daha' link preceding the entry list. Returns (href, count)."""
     if link := entry_list.find_previous_sibling("a", class_="more-data"):
-        return link["href"], int(link.text.strip().split()[0])
+        return cast("str", link["href"]), int(link.text.strip().split()[0])
     return "", 0
 
 
 def _get_pager_info(soup: Soup) -> tuple[int, int]:
     if pager := soup.select_one(PAGER_DIV):
-        return int(pager["data-currentpage"]), int(pager["data-pagecount"])
+        return int(cast("str", pager["data-currentpage"])), int(cast("str", pager["data-pagecount"]))
     return 1, 1
 
 
@@ -107,23 +90,33 @@ def _build_topic_url(topic_path: str, page: int) -> str:
     return f"{BASE_URL}{topic_path}{separator}p={page}"
 
 
-def get_topic_page(topic_path: str, page: int = 0) -> tuple[Iterator[tuple[str, str, str]], str, int, int, int]:
-    soup = get_soup(_build_topic_url(topic_path, page))
-    entry_list = soup.select_one(ENTRY_LIST)
+async def get_topic_page(
+    topic_path: str,
+    page: int = 0,
+) -> tuple[Iterator[tuple[str, str, str]], str, int, int, int]:
+    soup = await get_soup(_build_topic_url(topic_path, page))
     current_page, page_count = _get_pager_info(soup)
-    more_data_href, more_data_count = _find_more_data(entry_list)
-    return _yield_entries(entry_list), more_data_href, more_data_count, current_page, page_count
+
+    if entry_list := soup.select_one(ENTRY_LIST):
+        more_data_href, more_data_count = _find_more_data(entry_list)
+        return _yield_entries(entry_list), more_data_href, more_data_count, current_page, page_count
+
+    return iter(()), "", 0, current_page, page_count
 
 
-def get_topics(count: int) -> list[tuple[str, str]]:
-    def _iter_topics() -> Iterator[tuple[str, str]]:
-        page = 1
-        while True:
-            soup = get_soup(f"{BASE_URL}/basliklar/gundem?p={page}")
-            for a in soup.select(TOPIC_LIST):
-                yield a.text.strip(), a["href"]
-            if not soup.select_one(TOPIC_CONTINUE_LINK):
-                return
-            page += 1
+def _parse_topics(soup: Soup) -> list[tuple[str, str]]:
+    return [(a.text.strip(), str(a["href"])) for a in soup.select(TOPIC_LIST)]
 
-    return list(islice(_iter_topics(), count))
+
+async def get_topics(count: int) -> list[tuple[str, str]]:
+    topics: list[tuple[str, str]] = []
+    page = 1
+
+    while len(topics) < count:
+        soup = await get_soup(f"{BASE_URL}/basliklar/gundem?p={page}")
+        topics.extend(_parse_topics(soup))
+        if soup.select_one(TOPIC_CONTINUE_LINK) is None:
+            break
+        page += 1
+
+    return topics[:count]

@@ -40,24 +40,32 @@ def _loading_msg(title: str) -> str:
     return f"{terminal.CLEAR_SCREEN}{set_color(GREEN, title)}\n{LOADING_LABEL}\n"
 
 
-def _prompt_more_data(title: str, href: str, count: int) -> tuple[Iterator[tuple[str, str, str]], int, int] | None:
+async def _prompt_more_data(
+    title: str,
+    href: str,
+    count: int,
+) -> tuple[Iterator[tuple[str, str, str]], int, int] | None:
     terminal.flush(f"{set_color(CYAN, f'{count} entry daha yüklensin mi?')} {MORE_DATA_PROMPT}\n")
     if terminal.getchar() != "e":
         return None
     terminal.flush(_loading_msg(title))
-    visible, _, _, current_page, page_count = client.get_topic_page(href)
+    visible, _, _, current_page, page_count = await client.get_topic_page(href)
     return visible, current_page, page_count
 
 
-def _load_entries(
+async def _load_entries(
     title: str,
     url: str,
     page_num: int = 0,
 ) -> tuple[list[tuple[str, str, str]], int, int, str]:
     terminal.flush(_loading_msg(title))
-    visible, more_data_href, more_data_count, current_page, page_count = client.get_topic_page(url, page_num)
+    visible, more_data_href, more_data_count, current_page, page_count = await client.get_topic_page(url, page_num)
 
-    if more_data_count > 0 and page_num == 0 and (result := _prompt_more_data(title, more_data_href, more_data_count)):
+    if (
+        more_data_count > 0
+        and page_num == 0
+        and (result := await _prompt_more_data(title, more_data_href, more_data_count))
+    ):
         visible, current_page, page_count = result
         # Strip ?a=popular so subsequent pagination uses the chronological view.
         url = url.split("?", maxsplit=1)[0]
@@ -176,15 +184,21 @@ class Pager(ScrollView):
         return page_num, ""
 
     @classmethod
-    def _get_page(cls, title: str, url: str, page_num: int, page_count: int) -> tuple[str, int, int]:
+    async def _get_page(
+        cls,
+        title: str,
+        url: str,
+        page_num: int,
+        page_count: int,
+    ) -> tuple[str, int, int]:
         page_num, warning = cls._clamp_page(page_num, page_count)
-        entries, current_page, page_count, _ = _load_entries(title, url, page_num)
+        entries, current_page, page_count, _ = await _load_entries(title, url, page_num)
         cmd = cls(entries, title, warning, current_page, page_count).run()
         return cmd, current_page, page_count
 
     @classmethod
-    def enter_topic(cls, title: str, url: str) -> None:
-        entries, current_page, page_count, url = _load_entries(title, url)
+    async def enter_topic(cls, title: str, url: str) -> None:
+        entries, current_page, page_count, url = await _load_entries(title, url)
         cmd = cls(entries, title, page_num=current_page, page_count=page_count).run()
         page_num = current_page
 
@@ -197,7 +211,7 @@ class Pager(ScrollView):
                 page_num += 1
             elif cmd == "o":
                 page_num -= 1
-            cmd, page_num, page_count = cls._get_page(title, url, page_num, page_count)
+            cmd, page_num, page_count = await cls._get_page(title, url, page_num, page_count)
 
 
 class TopicSelector(ScrollView):
