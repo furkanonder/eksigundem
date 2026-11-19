@@ -1,3 +1,4 @@
+import asyncio
 import os
 from pathlib import Path
 import unittest
@@ -88,6 +89,37 @@ class TestTerminal(unittest.TestCase):
         assert f"{RED}10" in msg  # rows < MIN_LINES
 
 
+class TestGetchar(unittest.IsolatedAsyncioTestCase):
+    def setUp(self):
+        self.read_fd, self.write_fd = os.pipe()
+        self.addCleanup(os.close, self.read_fd)
+        self.addCleanup(os.close, self.write_fd)
+        stdin = patch("sys.stdin", Mock(fileno=lambda: self.read_fd))
+        stdin.start()
+        self.addCleanup(stdin.stop)
+
+    async def test_returns_the_key_pressed(self):
+        """A single byte comes back as the key."""
+        os.write(self.write_fd, b"g")
+        assert await terminal.getchar() == "g"
+
+    async def test_cancel_is_delivered_while_waiting(self):
+        """Ctrl+C cancels the wait, so one press quits."""
+        task = asyncio.create_task(terminal.getchar())
+        await asyncio.sleep(0.05)
+        task.cancel()
+        with self.assertRaises(asyncio.CancelledError):
+            await asyncio.wait_for(task, timeout=5)
+
+    async def test_eof_raises_eoferror(self):
+        """A closed stdin raises EOFError."""
+        read_fd, write_fd = os.pipe()
+        os.close(write_fd)  # no writer left, so the read end is at EOF
+        self.addCleanup(os.close, read_fd)
+        with patch("sys.stdin", Mock(fileno=lambda: read_fd)), self.assertRaises(EOFError):
+            await terminal.getchar()
+
+
 class TestClient(unittest.IsolatedAsyncioTestCase):
     async def test_get_soup_success(self):
         """Should fetch URL and return BeautifulSoup object."""
@@ -98,7 +130,7 @@ class TestClient(unittest.IsolatedAsyncioTestCase):
             result = await client.get_soup("http://test.com")
 
         assert isinstance(result, Soup)
-        mock_client.get.assert_called_once_with("http://test.com")
+        mock_client.get.assert_awaited_once_with("http://test.com")
         mock_response.raise_for_status.assert_called_once()
 
     async def test_get_soup_404_error(self):
@@ -191,7 +223,7 @@ class TestClient(unittest.IsolatedAsyncioTestCase):
             assert len(topics) == 5
             assert topics[0] == ("Topic 1 10", "/topic1--1?a=popular")
             assert topics[4] == ("Topic 5 50", "/topic5--5?a=popular")
-            assert mock_soup.call_count == 2
+            assert mock_soup.await_count == 2
 
     async def test_get_topics_stops_at_requested_count(self):
         """Should stop paginating once count is reached even if more pages exist."""
@@ -200,7 +232,7 @@ class TestClient(unittest.IsolatedAsyncioTestCase):
         with patch.object(client, "get_soup", return_value=page1) as mock_soup:
             topics = await client.get_topics(2)
             assert len(topics) == 2
-            assert mock_soup.call_count == 1
+            assert mock_soup.await_count == 1
 
     async def test_get_topics_returns_less_when_site_has_fewer(self):
         """Should return all available topics when site has fewer than requested."""
@@ -218,7 +250,7 @@ class TestClient(unittest.IsolatedAsyncioTestCase):
 
         with patch.object(client, "get_soup", return_value=real_soup) as mock_soup:
             await client.get_topic_page("/topic--123?a=popular")
-            fetched_url = mock_soup.call_args[0][0]
+            fetched_url = mock_soup.await_args[0][0]
             assert "?a=popular" in fetched_url
 
     async def test_preserves_query_on_explicit_page(self):
@@ -228,7 +260,7 @@ class TestClient(unittest.IsolatedAsyncioTestCase):
 
         with patch.object(client, "get_soup", return_value=real_soup) as mock_soup:
             await client.get_topic_page("/topic--123?a=popular", page=2)
-            fetched_url = mock_soup.call_args[0][0]
+            fetched_url = mock_soup.await_args[0][0]
             assert "a=popular" in fetched_url
             assert "p=2" in fetched_url
 
@@ -239,7 +271,7 @@ class TestClient(unittest.IsolatedAsyncioTestCase):
 
         with patch.object(client, "get_soup", return_value=real_soup) as mock_soup:
             await client.get_topic_page("/topic--123", page=2)
-            fetched_url = mock_soup.call_args[0][0]
+            fetched_url = mock_soup.await_args[0][0]
             assert "?p=2" in fetched_url
 
     async def test_detects_more_data_link(self):
@@ -299,12 +331,12 @@ class TestClient(unittest.IsolatedAsyncioTestCase):
 @patch("sys.stdout")
 class TestPager(unittest.IsolatedAsyncioTestCase):
     @patch("shutil.get_terminal_size", return_value=os.terminal_size((80, 50)))
-    @patch("eksi.pager.terminal.getchar", return_value="g")
-    def test_short_content(self, mock_getchar, _mock_size, _mock_stdout):
+    @patch("eksi.pager.terminal.getchar", new_callable=AsyncMock, return_value="g")
+    async def test_short_content(self, mock_getchar, _mock_size, _mock_stdout):
         """Short content still enters the pager, any key exits."""
         pager = Pager(entries=[(f"line {i}", "author", "date") for i in range(10)])
-        pager.run()
-        mock_getchar.assert_called_once()
+        await pager.run()
+        mock_getchar.assert_awaited_once()
 
     @patch("shutil.get_terminal_size", return_value=os.terminal_size((40, 10)))
     @patch("eksi.pager.terminal.flush")
@@ -316,21 +348,21 @@ class TestPager(unittest.IsolatedAsyncioTestCase):
         assert "Terminal boyutu çok küçük:" in flushed
 
     @patch("shutil.get_terminal_size", return_value=os.terminal_size((80, 6)))
-    @patch("eksi.pager.terminal.getchar", side_effect=[" ", " ", "g"])
-    def test_with_pause(self, mock_getchar, _mock_size, _mock_stdout):
+    @patch("eksi.pager.terminal.getchar", new_callable=AsyncMock, side_effect=[" ", " ", "g"])
+    async def test_with_pause(self, mock_getchar, _mock_size, _mock_stdout):
         """Content exceeds terminal - Space scrolls, non-scroll key exits."""
         pager = Pager(entries=[(f"line {i}", "author", "date") for i in range(12)])
-        result = pager.run()
-        assert mock_getchar.call_count == 3
+        result = await pager.run()
+        assert mock_getchar.await_count == 3
         assert result == "g"
 
     @patch("shutil.get_terminal_size", return_value=os.terminal_size((80, 6)))
-    @patch("eksi.pager.terminal.getchar", side_effect=[" ", "s"])
-    def test_returns_exit_key(self, mock_getchar, _mock_size, _mock_stdout):
+    @patch("eksi.pager.terminal.getchar", new_callable=AsyncMock, side_effect=[" ", "s"])
+    async def test_returns_exit_key(self, mock_getchar, _mock_size, _mock_stdout):
         """Pager returns the key that caused exit."""
         pager = Pager(entries=[(f"line {i}", "author", "date") for i in range(12)])
-        result = pager.run()
-        assert mock_getchar.call_count == 2
+        result = await pager.run()
+        assert mock_getchar.await_count == 2
         assert result == "s"
 
     async def test_load_entries(self, _mock_stdout):
@@ -349,7 +381,7 @@ class TestPager(unittest.IsolatedAsyncioTestCase):
     async def test_load_entries_delegates_to_client(self, mock_page, _mock_stdout):
         """Should pass topic URL and page number to client.get_topic_page."""
         await pager_mod._load_entries("Test", "/topic--123?a=popular", page_num=2)
-        mock_page.assert_called_once_with("/topic--123?a=popular", 2)
+        mock_page.assert_awaited_once_with("/topic--123?a=popular", 2)
 
     async def test_get_page_first_page_warning(self, _mock_stdout):
         """Page num 0 clamps to 1 and sets a warning."""
@@ -359,10 +391,10 @@ class TestPager(unittest.IsolatedAsyncioTestCase):
                 "_load_entries",
                 return_value=([("line", "author", "date")], 1, 10, "/url"),
             ) as mock_load,
-            patch.object(Pager, "run", return_value="g"),
+            patch.object(Pager, "run", AsyncMock(return_value="g")),
         ):
             cmd, page_num, page_count = await Pager._get_page("title", "/url", 0, 10)
-            mock_load.assert_called_once_with("title", "/url", 1)
+            mock_load.assert_awaited_once_with("title", "/url", 1)
             assert page_num == 1
             assert page_count == 10
             assert cmd == "g"
@@ -375,15 +407,15 @@ class TestPager(unittest.IsolatedAsyncioTestCase):
                 "_load_entries",
                 return_value=([("line", "author", "date")], 4, 4, "/url"),
             ) as mock_load,
-            patch.object(Pager, "run", return_value="g"),
+            patch.object(Pager, "run", AsyncMock(return_value="g")),
         ):
             cmd, page_num, page_count = await Pager._get_page("title", "/url", 5, 4)
-            mock_load.assert_called_once_with("title", "/url", 4)
+            mock_load.assert_awaited_once_with("title", "/url", 4)
             assert page_num == 4
             assert page_count == 4
             assert cmd == "g"
 
-    @patch("eksi.pager.terminal.getchar", return_value="e")
+    @patch("eksi.pager.terminal.getchar", new_callable=AsyncMock, return_value="e")
     @patch("eksi.pager.client.get_topic_page")
     async def test_load_entries_more_data_yes(self, mock_page, _mock_getchar, _mock_stdout):
         """When more-data entries exist and the user presses 'e', reload from focusto URL."""
@@ -392,15 +424,15 @@ class TestPager(unittest.IsolatedAsyncioTestCase):
             ([("more", "author2", "date2")], "", 0, 3, 30),
         ]
         _lines, current_page, page_count, url = await pager_mod._load_entries("T", "/t--1?a=popular")
-        assert mock_page.call_count == 2
-        mock_page.assert_any_call("/t--1?a=popular", 0)
-        mock_page.assert_any_call("/t--1?focusto=100")
+        assert mock_page.await_count == 2
+        mock_page.assert_any_await("/t--1?a=popular", 0)
+        mock_page.assert_any_await("/t--1?focusto=100")
         assert current_page == 3
         assert page_count == 30
         # After accepting more-data, url should be stripped of ?a=popular
         assert url == "/t--1"
 
-    @patch("eksi.pager.terminal.getchar", return_value="h")
+    @patch("eksi.pager.terminal.getchar", new_callable=AsyncMock, return_value="h")
     @patch(
         "eksi.pager.client.get_topic_page",
         return_value=([("visible", "author1", "date1")], "/t?focusto=1", 5, 1, 10),
@@ -408,7 +440,7 @@ class TestPager(unittest.IsolatedAsyncioTestCase):
     async def test_load_entries_more_data_no(self, mock_page, _mock_getchar, _mock_stdout):
         """When more-data entries exist and the user presses 'h', keep visible entries."""
         _lines, current_page, page_count, url = await pager_mod._load_entries("T", "/t?a=popular")
-        assert mock_page.call_count == 1
+        assert mock_page.await_count == 1
         assert current_page == 1
         assert page_count == 10
         # User declined, url kept as-is so popular-view pagination continues
@@ -422,11 +454,11 @@ class TestPager(unittest.IsolatedAsyncioTestCase):
                 "_load_entries",
                 return_value=([("line", "author", "date")], 5, 10, "/url"),
             ) as mock_load,
-            patch.object(Pager, "run", side_effect=["i", "g"]),
+            patch.object(Pager, "run", AsyncMock(side_effect=["i", "g"])),
         ):
             await Pager.enter_topic("title", "/url")
-            assert mock_load.call_count == 2
-            mock_load.assert_any_call("title", "/url", 1)
+            assert mock_load.await_count == 2
+            mock_load.assert_any_await("title", "/url", 1)
 
     async def test_enter_topic_last_page(self, _mock_stdout):
         """Pressing 'e' should navigate to the last page."""
@@ -436,13 +468,13 @@ class TestPager(unittest.IsolatedAsyncioTestCase):
                 "_load_entries",
                 return_value=([("line", "author", "date")], 5, 10, "/url"),
             ) as mock_load,
-            patch.object(Pager, "run", side_effect=["e", "g"]),
+            patch.object(Pager, "run", AsyncMock(side_effect=["e", "g"])),
         ):
             await Pager.enter_topic("title", "/url")
-            assert mock_load.call_count == 2
-            mock_load.assert_any_call("title", "/url", 10)
+            assert mock_load.await_count == 2
+            mock_load.assert_any_await("title", "/url", 10)
 
-    @patch("eksi.pager.terminal.getchar", return_value="h")
+    @patch("eksi.pager.terminal.getchar", new_callable=AsyncMock, return_value="h")
     @patch(
         "eksi.pager.client.get_topic_page",
         return_value=([("visible", "author", "date")], "/t?focusto=1", 5, 1, 10),
@@ -451,44 +483,44 @@ class TestPager(unittest.IsolatedAsyncioTestCase):
         """More-data prompt should only appear on an initial load (page_num=0), not on pagination."""
         # page_num=2 simulates pagination, should NOT prompt even though more_data_count > 0
         _lines, current_page, _page_count, _url = await pager_mod._load_entries("T", "/t?a=popular", page_num=2)
-        assert mock_page.call_count == 1
+        assert mock_page.await_count == 1
         assert current_page == 1
 
     @patch("shutil.get_terminal_size", return_value=os.terminal_size((80, 10)))
-    def test_scroll_arrow_up(self, _mock_size, _mock_stdout):
+    async def test_scroll_arrow_up(self, _mock_size, _mock_stdout):
         """Arrow up should scroll up by one line."""
         pager = Pager(entries=[(f"line {i}", "author", "date") for i in range(20)])
         pager.scroll_pos = 5
-        with patch("eksi.pager.terminal.getchar", side_effect=["[", "A"]):
-            pager._compute_scroll("\x1b")
+        with patch("eksi.pager.terminal.getchar", AsyncMock(side_effect=["[", "A"])):
+            await pager._compute_scroll("\x1b")
         assert pager.scroll_pos == 4
 
     @patch("shutil.get_terminal_size", return_value=os.terminal_size((80, 10)))
-    def test_scroll_home_end(self, _mock_size, _mock_stdout):
+    async def test_scroll_home_end(self, _mock_size, _mock_stdout):
         """Home should go to start, End to max scroll."""
         pager = Pager(entries=[(f"line {i}", "author", "date") for i in range(30)])
         pager.scroll_pos = 10
-        with patch("eksi.pager.terminal.getchar", side_effect=["[", "H"]):
-            pager._compute_scroll("\x1b")
+        with patch("eksi.pager.terminal.getchar", AsyncMock(side_effect=["[", "H"])):
+            await pager._compute_scroll("\x1b")
         assert pager.scroll_pos == 0
-        with patch("eksi.pager.terminal.getchar", side_effect=["[", "F"]):
-            pager._compute_scroll("\x1b")
+        with patch("eksi.pager.terminal.getchar", AsyncMock(side_effect=["[", "F"])):
+            await pager._compute_scroll("\x1b")
         assert pager.scroll_pos == pager.max_scroll
 
     @patch("shutil.get_terminal_size", return_value=os.terminal_size((80, 10)))
-    def test_scroll_pgup_pgdn(self, _mock_size, _mock_stdout):
+    async def test_scroll_pgup_pgdn(self, _mock_size, _mock_stdout):
         """PgUp/PgDn should scroll by page_size."""
         pager = Pager(entries=[(f"line {i}", "author", "date") for i in range(50)])
-        with patch("eksi.pager.terminal.getchar", side_effect=["[", "6", "~"]):
-            pager._compute_scroll("\x1b")
+        with patch("eksi.pager.terminal.getchar", AsyncMock(side_effect=["[", "6", "~"])):
+            await pager._compute_scroll("\x1b")
         assert pager.scroll_pos == pager.page_size
-        with patch("eksi.pager.terminal.getchar", side_effect=["[", "5", "~"]):
-            pager._compute_scroll("\x1b")
+        with patch("eksi.pager.terminal.getchar", AsyncMock(side_effect=["[", "5", "~"])):
+            await pager._compute_scroll("\x1b")
         assert pager.scroll_pos == 0
 
 
 @patch("sys.stdout")
-class TestTopicSelector(unittest.TestCase):
+class TestTopicSelector(unittest.IsolatedAsyncioTestCase):
     TOPICS = [("Topic 5", "/topic")] * 5
 
     @patch("shutil.get_terminal_size", return_value=os.terminal_size((40, 10)))
@@ -502,10 +534,10 @@ class TestTopicSelector(unittest.TestCase):
         assert "Terminal boyutu çok küçük:" in flushed
 
     @patch("shutil.get_terminal_size", return_value=os.terminal_size((80, 50)))
-    @patch("eksi.pager.terminal.getchar", side_effect=["1", "\x7f", "2", "\n"])
-    def test_backspace(self, _mock_getchar, _mock_size, _mock_stdout):
+    @patch("eksi.pager.terminal.getchar", new_callable=AsyncMock, side_effect=["1", "\x7f", "2", "\n"])
+    async def test_backspace(self, _mock_getchar, _mock_size, _mock_stdout):
         """Backspace should delete the last digit from the buffer."""
-        title, url = TopicSelector(self.TOPICS).run()
+        title, url = await TopicSelector(self.TOPICS).run()
         assert title == "Topic 5"
         assert url == "/topic"
 
@@ -517,26 +549,26 @@ class TestTopicSelector(unittest.TestCase):
         assert "test" in selector.lines[0]
 
     @patch("shutil.get_terminal_size", return_value=os.terminal_size((80, 50)))
-    @patch("eksi.pager.terminal.getchar", side_effect=["1", "\n"])
-    def test_select(self, _mock_getchar, _mock_size, _mock_stdout):
+    @patch("eksi.pager.terminal.getchar", new_callable=AsyncMock, side_effect=["1", "\n"])
+    async def test_select(self, _mock_getchar, _mock_size, _mock_stdout):
         """Digit + enter selects a topic."""
-        title, url = TopicSelector(self.TOPICS).run()
+        title, url = await TopicSelector(self.TOPICS).run()
         assert title == "Topic 5"
         assert url == "/topic"
 
     @patch("shutil.get_terminal_size", return_value=os.terminal_size((80, 50)))
-    @patch("eksi.pager.terminal.getchar", side_effect=["9", "\n", "1", "\n"])
-    def test_invalid_then_valid(self, _mock_getchar, _mock_size, _mock_stdout):
+    @patch("eksi.pager.terminal.getchar", new_callable=AsyncMock, side_effect=["9", "\n", "1", "\n"])
+    async def test_invalid_then_valid(self, _mock_getchar, _mock_size, _mock_stdout):
         """Invalid index clears the buffer, user can then enter a valid one."""
-        title, url = TopicSelector(self.TOPICS).run()
+        title, url = await TopicSelector(self.TOPICS).run()
         assert title == "Topic 5"
         assert url == "/topic"
 
     @patch("shutil.get_terminal_size", return_value=os.terminal_size((80, 50)))
-    @patch("eksi.pager.terminal.getchar", side_effect=["\x1b", "[", "B", "1", "\n"])
-    def test_scroll_then_select(self, _mock_getchar, _mock_size, _mock_stdout):
+    @patch("eksi.pager.terminal.getchar", new_callable=AsyncMock, side_effect=["\x1b", "[", "B", "1", "\n"])
+    async def test_scroll_then_select(self, _mock_getchar, _mock_size, _mock_stdout):
         """Arrow down scrolls a topic list, then digit+enter selects a topic."""
-        title, url = TopicSelector(self.TOPICS).run()
+        title, url = await TopicSelector(self.TOPICS).run()
         assert title == "Topic 5"
         assert url == "/topic"
 
@@ -566,19 +598,19 @@ class TestEksi(unittest.IsolatedAsyncioTestCase):
     @patch("eksi.eksi.Pager.enter_topic")
     async def test_prompt_select(self, mock_enter, mock_selector_cls, _mock_stdout):
         """Prompt selects a topic and enters the topic view."""
-        mock_selector_cls.return_value.run.return_value = ("Topic 5", "/topic")
+        mock_selector_cls.return_value.run = AsyncMock(return_value=("Topic 5", "/topic"))
         self.eksi.topics = [("Topic 5", "/topic")] * 5
-        mock_enter.side_effect = KeyboardInterrupt
-        with self.assertRaises(KeyboardInterrupt):
+        mock_enter.side_effect = asyncio.CancelledError
+        with self.assertRaises(asyncio.CancelledError):
             await self.eksi.prompt()
-        mock_enter.assert_called_once_with("Topic 5", "/topic")
+        mock_enter.assert_awaited_once_with("Topic 5", "/topic")
 
     @patch("eksi.eksi.TopicSelector")
     async def test_prompt_exit(self, mock_selector_cls, _mock_stdout):
-        """Prompt exits on Ctrl+C."""
-        mock_selector_cls.return_value.run.side_effect = KeyboardInterrupt
+        """Prompt exits when the topic list read is cancelled."""
+        mock_selector_cls.return_value.run = AsyncMock(side_effect=asyncio.CancelledError)
         self.eksi.topics = [("t 1", "/t")] * 5
-        with self.assertRaises(KeyboardInterrupt):
+        with self.assertRaises(asyncio.CancelledError):
             await self.eksi.prompt()
 
     @patch("eksi.eksi.TopicSelector")
@@ -586,14 +618,38 @@ class TestEksi(unittest.IsolatedAsyncioTestCase):
     @patch.object(Eksi, "_fetch_topics")
     async def test_prompt_returns_to_topic_list(self, _mock_fetch, mock_enter, mock_selector_cls, _mock_stdout):
         """After entering a topic and returning, the user can select another topic."""
-        mock_selector_cls.return_value.run.side_effect = [
-            ("Topic A 5", "/a"),
-            ("Topic B 10", "/b"),
-            KeyboardInterrupt,
-        ]
+        mock_selector_cls.return_value.run = AsyncMock(
+            side_effect=[
+                ("Topic A 5", "/a"),
+                ("Topic B 10", "/b"),
+                asyncio.CancelledError,
+            ],
+        )
         self.eksi.topics = [("Topic A 5", "/a"), ("Topic B 10", "/b")]
-        with self.assertRaises(KeyboardInterrupt):
+        with self.assertRaises(asyncio.CancelledError):
             await self.eksi.prompt()
-        assert mock_enter.call_count == 2
-        mock_enter.assert_any_call("Topic A 5", "/a")
-        mock_enter.assert_any_call("Topic B 10", "/b")
+        assert mock_enter.await_count == 2
+        mock_enter.assert_any_await("Topic A 5", "/a")
+        mock_enter.assert_any_await("Topic B 10", "/b")
+
+    @patch("eksi.eksi.terminal.flush")
+    @patch("eksi.eksi.session.close_session")
+    @patch("eksi.eksi.session.open_session")
+    @patch.object(Eksi, "_fetch_topics")
+    @patch.object(Eksi, "prompt")
+    async def test_main_cleans_up_on_interrupt(
+        self,
+        _mock_prompt,
+        _mock_fetch,
+        _mock_open,
+        mock_close,
+        mock_flush,
+        _mock_stdout,
+    ):
+        """Ctrl+C at the prompt still closes the session and leaves the alternate screen."""
+        _mock_prompt.side_effect = KeyboardInterrupt
+        with self.assertRaises(KeyboardInterrupt):
+            await self.eksi.main()
+        mock_close.assert_awaited_once()
+        flushed = "".join(call.args[0] for call in mock_flush.call_args_list)
+        assert terminal.ALT_SCREEN_OFF in flushed

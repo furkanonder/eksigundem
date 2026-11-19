@@ -18,7 +18,7 @@ class Eksi:
     async def prompt(self) -> None:
         with terminal.cbreak_mode():
             while True:
-                title, url = TopicSelector(self.topics).run()
+                title, url = await TopicSelector(self.topics).run()
                 await Pager.enter_topic(title, url)
                 terminal.flush(RETURNING_MSG)
                 await self._fetch_topics()
@@ -29,8 +29,6 @@ class Eksi:
         try:
             await self._fetch_topics()
             await self.prompt()
-        except KeyboardInterrupt:
-            pass
         finally:
             await session.close_session()
             terminal.flush(terminal.ALT_SCREEN_OFF)

@@ -46,7 +46,7 @@ async def _prompt_more_data(
     count: int,
 ) -> tuple[Iterator[tuple[str, str, str]], int, int] | None:
     terminal.flush(f"{set_color(CYAN, f'{count} entry daha yüklensin mi?')} {MORE_DATA_PROMPT}\n")
-    if terminal.getchar() != "e":
+    if await terminal.getchar() != "e":
         return None
     terminal.flush(_loading_msg(title))
     visible, _, _, current_page, page_count = await client.get_topic_page(href)
@@ -101,22 +101,21 @@ class ScrollView(ABC):
 
     @contextmanager
     def _sigwinch_installed(self) -> Iterator[None]:
-        # getchar()'s blocked read() is retried automatically after the handler runs (PEP 475).
         previous = signal.signal(signal.SIGWINCH, self._on_resize)
         try:
             yield
         finally:
             signal.signal(signal.SIGWINCH, previous)
 
-    def _compute_scroll(self, c: str) -> None:
+    async def _compute_scroll(self, c: str) -> None:
         if c == "\n":
             delta = 1
         elif c == " ":
             delta = self.page_size
-        elif c == "\x1b" and terminal.getchar() == "[":
-            seq = terminal.getchar()
+        elif c == "\x1b" and await terminal.getchar() == "[":
+            seq = await terminal.getchar()
             if seq in ("5", "6"):  # for PgUp/PgDn consume trailing ~
-                terminal.getchar()
+                await terminal.getchar()
             delta = {
                 "A": -1,  # Arrow up
                 "B": 1,  # Arrow down
@@ -167,13 +166,13 @@ class Pager(ScrollView):
         prompt = f"{PAGER_EXIT}\n{PAGER_NAV_LEFT}{page_info}{PAGER_NAV_RIGHT}"
         terminal.flush(f"{terminal.CLEAR_SCREEN}{set_color(GREEN, self.title)}\n{visible_lines}\n{footer}{prompt}")
 
-    def run(self) -> str:
+    async def run(self) -> str:
         with self._sigwinch_installed():
             while True:
                 self._render()
-                if (c := terminal.getchar()) in VALID_KEYS:
+                if (c := await terminal.getchar()) in VALID_KEYS:
                     return c
-                self._compute_scroll(c)
+                await self._compute_scroll(c)
 
     @staticmethod
     def _clamp_page(page_num: int, page_count: int) -> tuple[int, str]:
@@ -193,13 +192,13 @@ class Pager(ScrollView):
     ) -> tuple[str, int, int]:
         page_num, warning = cls._clamp_page(page_num, page_count)
         entries, current_page, page_count, _ = await _load_entries(title, url, page_num)
-        cmd = cls(entries, title, warning, current_page, page_count).run()
+        cmd = await cls(entries, title, warning, current_page, page_count).run()
         return cmd, current_page, page_count
 
     @classmethod
     async def enter_topic(cls, title: str, url: str) -> None:
         entries, current_page, page_count, url = await _load_entries(title, url)
-        cmd = cls(entries, title, page_num=current_page, page_count=page_count).run()
+        cmd = await cls(entries, title, page_num=current_page, page_count=page_count).run()
         page_num = current_page
 
         while cmd != "g":
@@ -241,13 +240,13 @@ class TopicSelector(ScrollView):
         prompt = f"{QUIT_LABEL} | {self.status}\n{terminal.SHOW_CURSOR}>>> {self.buf}"
         terminal.flush(f"{terminal.CLEAR_SCREEN}{visible}\n{footer}{prompt}")
 
-    def _handle_input(self, c: str) -> None:
+    async def _handle_input(self, c: str) -> None:
         if c == terminal.BACKSPACE and self.buf:
             self.buf = self.buf[:-1]
         elif c.isdigit():
             self.buf += c
         else:
-            self._compute_scroll(c)
+            await self._compute_scroll(c)
 
     def _try_select(self) -> tuple[str, str] | None:
         if self.buf.isdigit() and 1 <= (index := int(self.buf)) <= len(self.topics):
@@ -255,15 +254,15 @@ class TopicSelector(ScrollView):
             return self.topics[index - 1]
         return None
 
-    def run(self) -> tuple[str, str]:
+    async def run(self) -> tuple[str, str]:
         with self._sigwinch_installed():
             while True:
                 self._render()
-                c = terminal.getchar()
+                c = await terminal.getchar()
                 if c == "\n" and self.buf:
                     if selected := self._try_select():
                         return selected
                     self.buf, self.status = "", self.error
                 else:
-                    self._handle_input(c)
+                    await self._handle_input(c)
                     self.status = self.hint

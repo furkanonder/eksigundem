@@ -1,5 +1,7 @@
+import asyncio
 from collections.abc import Iterator
 from contextlib import contextmanager
+import os
 import shutil
 import sys
 import termios
@@ -22,8 +24,18 @@ ALT_SCREEN_OFF: Final = f"{SHOW_CURSOR}\033[?1049l"  # Show cursor, exit alterna
 CLEAR_SCREEN: Final = "\033[2J\033[3J\033[H"  # Clear the screen, scrollback, and cursor home
 
 
-def getchar() -> str:
-    return sys.stdin.read(1)
+async def getchar() -> str:
+    loop = asyncio.get_running_loop()
+    fd = sys.stdin.fileno()
+    ready: asyncio.Future[None] = loop.create_future()
+    loop.add_reader(fd, ready.set_result, None)
+    try:
+        await ready  # the cancel lands here
+    finally:
+        loop.remove_reader(fd)
+    if not (data := os.read(fd, 1)):
+        raise EOFError  # __main__ exits 0 on this
+    return data.decode(errors="replace")
 
 
 def flush(*parts: str) -> None:
